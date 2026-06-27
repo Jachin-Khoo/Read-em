@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Read'Em - Integrated AI Dyslexia Reading Companion</title>
+  <link rel="icon" type="image/png" href="/assets/readem_logo.png">
+  <!-- Google Fonts: Inter & Lexend -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- OpenDyslexic Font from CDN -->
+  <link href="https://fonts.cdnfonts.com/css/open-dyslexic" rel="stylesheet">
+  <!-- FontAwesome Icons for clean UI -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="theme-cream">
+
+  <!-- Main Navigation Header -->
+  <header class="app-header">
+    <div class="header-logo">
+      <img src="/assets/readem_logo.png" alt="Read'Em Logo" style="width: 32px; height: 32px; border-radius: 6px; margin-right: 10px; box-shadow: var(--shadow-sm);">
+      <div class="logo-text">
+        <h1>Read'Em</h1>
+        <span>AI Reading Companion</span>
+      </div>
+    </div>
+
+    <!-- Right Controls: Settings Drawer toggle & Logout -->
+    <div class="header-actions">
+      <button id="btn-api-settings" class="icon-btn-text"><i class="fa-solid fa-key"></i> API Keys</button>
+      <button id="btn-logout" class="icon-btn-text" style="display: none;"><i class="fa-solid fa-right-from-bracket"></i> Exit Workspace</button>
+    </div>
+  </header>
+
+  <!-- Main Body Wrapper -->
+  <main class="app-container">
+
+    <!-- ==================== WELCOME LANDING PORTAL ==================== -->
+    <section id="view-landing-portal" class="workspace-section active">
+      <div class="landing-container" style="max-width: 900px; margin: 40px auto; padding: 0 20px; text-align: center;">
+        <div class="landing-hero" style="margin-bottom: 40px;">
+          <img src="/assets/readem_logo.png" alt="Read'Em Logo" class="landing-logo" style="width: 140px; height: auto; border-radius: 20px; margin-bottom: 20px; box-shadow: var(--shadow-md);">
+          <h2 style="font-family: 'Lexend', sans-serif; font-size: 2.2rem; color: var(--color-primary); margin-bottom: 12px;">Welcome to Read'Em</h2>
+          <p style="font-size: 1.1rem; line-height: 1.6; color: var(--text-muted); max-width: 650px; margin: 0 auto;">
+            A premium, personalized AI-powered reading companion designed specifically to help children and adults with dyslexia read with ease, speed, and confidence.
+          </p>
+        </div>
+
+        <div class="landing-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; margin-top: 20px;">
+          <!-- Card 1: Reader -->
+          <div class="portal-card card" id="card-enter-reader" style="cursor: pointer; padding: 30px; text-align: left; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.borderColor='var(--color-primary)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='transparent'; this.style.boxShadow='var(--shadow-md)';">
+            <div class="portal-card-icon" style="font-size: 2.2rem; color: var(--color-primary); margin-bottom: 15px;"><i class="fa-solid fa-book-open-reader"></i></div>
+            <h3 style="font-family: 'Lexend', sans-serif; font-size: 1.3rem; margin-bottom: 10px;">Open Reader</h3>
+            <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; height: 70px;">
+              Upload documents, copy passages, or load curriculum worksheets to read with fully adjustable spacing, bionic helpers, and audio-visual text highlighting.
+            </p>
+            <button class="primary-btn portal-btn" style="width: 100%; cursor: pointer;">Start Reading</button>
+          </div>
+
+          <!-- Card 2: Teacher Dashboard -->
+          <div class="portal-card card" id="card-enter-teacher" style="padding: 30px; text-align: left; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-md)';">
+            <div class="portal-card-icon" style="font-size: 2.2rem; color: var(--color-primary); margin-bottom: 15px;"><i class="fa-solid fa-chalkboard-user"></i></div>
+            <h3 style="font-family: 'Lexend', sans-serif; font-size: 1.3rem; margin-bottom: 10px;">Teacher Dashboard</h3>
+            <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; height: 50px;">
+              Monitor classroom progress, track struggled vocabulary lists, and download passive telemetry insight reports.
+            </p>
+            <div class="pin-field-wrapper" style="margin-bottom: 15px;">
+              <input type="password" id="teacher-pin" placeholder="Enter Access PIN (teacher123)" style="width: 100%; padding: 10px 12px; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); font-family: inherit; font-size: 0.9rem;">
+            </div>
+            <button class="secondary-btn portal-btn" id="btn-submit-teacher" style="width: 100%; cursor: pointer;">Enter Dashboard</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== READER WORKSPACE ==================== -->
+    <section id="reader-workspace" class="workspace-section show-upload">
+      
+      <!-- Left Controls Panel -->
+      <aside class="sidebar-controls card">
+        <div class="control-group">
+          <h3><i class="fa-solid fa-sliders"></i> Typography</h3>
+          
+          <label for="font-family-select">Font Style</label>
+          <select id="font-family-select">
+            <option value="font-lexend" selected>Lexend (Highly Readable)</option>
+            <option value="font-opendyslexic">OpenDyslexic</option>
+            <option value="font-inter">Inter Sans</option>
+            <option value="font-system">System Serif</option>
+          </select>
+
+          <div class="slider-row">
+            <label for="font-size-slider">Font Size</label>
+            <span id="font-size-value">20px</span>
+            <input type="range" id="font-size-slider" min="16" max="36" value="22">
+          </div>
+
+          <div class="slider-row">
+            <label for="line-height-slider">Line Height</label>
+            <span id="line-height-value">1.8</span>
+            <input type="range" id="line-height-slider" min="1.4" max="2.6" step="0.1" value="1.8">
+          </div>
+
+          <div class="slider-row">
+            <label for="letter-spacing-slider">Letter Spacing</label>
+            <span id="letter-spacing-value">0.12em</span>
+            <input type="range" id="letter-spacing-slider" min="0" max="0.3" step="0.02" value="0.12">
+          </div>
+
+          <div class="slider-row">
+            <label for="word-spacing-slider">Word Spacing</label>
+            <span id="word-spacing-value">0.25em</span>
+            <input type="range" id="word-spacing-slider" min="0" max="0.6" step="0.05" value="0.25">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-palette"></i> Background Tint</h3>
+          <div class="theme-swatches">
+            <button class="swatch swatch-cream active" data-theme="theme-cream" title="Warm Cream"></button>
+            <button class="swatch swatch-yellow" data-theme="theme-yellow" title="Soft Amber"></button>
+            <button class="swatch swatch-blue" data-theme="theme-blue" title="Pale Aqua"></button>
+            <button class="swatch swatch-mint" data-theme="theme-mint" title="Mint Leaf"></button>
+            <button class="swatch swatch-white" data-theme="theme-white" title="Classic Light"></button>
+            <button class="swatch swatch-dark" data-theme="theme-dark" title="Charcoal Dark"></button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-eye"></i> Visual Aids</h3>
+          
+          <div class="toggle-row">
+            <label for="toggle-ruler">Reading Ruler</label>
+            <input type="checkbox" id="toggle-ruler" class="switch-input">
+          </div>
+          
+          <div class="slider-row ruler-control" style="display:none;">
+            <label for="ruler-height-slider">Ruler Size</label>
+            <span id="ruler-height-value">40px</span>
+            <input type="range" id="ruler-height-slider" min="20" max="100" value="40">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-chunking">Sentence Chunking</label>
+            <input type="checkbox" id="toggle-chunking" class="switch-input">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-bionic">Bionic Reading</label>
+            <input type="checkbox" id="toggle-bionic" class="switch-input">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-volume-high"></i> Read Aloud Voice</h3>
+          
+          <label for="voice-select">Voice Type</label>
+          <select id="voice-select">
+            <option value="">Detecting voices...</option>
+          </select>
+
+          <div class="slider-row">
+            <label for="voice-speed-slider">Voice Speed</label>
+            <span id="voice-speed-value">1.0x</span>
+            <input type="range" id="voice-speed-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Reading Area Container -->
+      <section class="reading-workspace">
+        
+        <!-- Mode A: Text Upload/Ingestion Dashboard -->
+        <div id="panel-upload" class="workspace-card card">
+          <div class="upload-header">
+            <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload Study Materials</h2>
+            <p>Paste text, choose a file, or load dynamic curriculum models across any subject.</p>
+          </div>
+
+          <div class="upload-dropzone" id="dropzone">
+            <i class="fa-regular fa-file-pdf dropzone-icon"></i>
+            <p>Drag and drop a <strong>PDF worksheet</strong> or <strong>TXT file</strong> here</p>
+            <span>or</span>
+            <input type="file" id="file-input" accept=".pdf,.txt" style="display: none;">
+            <button id="btn-browse-file" class="primary-btn"><i class="fa-solid fa-folder-open"></i> Browse Files</button>
+          </div>
+
+          <div class="or-separator">
+            <span>OR</span>
+          </div>
+
+          <div class="manual-input-area">
+            <label for="text-input">Paste Textbook Passage or Word Problems</label>
+            <textarea id="text-input" placeholder="Type or paste paragraphs here (e.g. Science, Mathematics, Literature, or History passages)..."></textarea>
+          </div>
+
+          <div class="demo-curriculum-row">
+            <div class="dropdown-wrapper">
+              <label for="demo-select">Load Subject Demo Material</label>
+              <select id="demo-select">
+                <option value="" disabled selected>Select educational material...</option>
+                <option value="math-word">Math: Ratios & Fractions (Word Problem)</option>
+                <option value="science-passage">Science: Photosynthesis & Plant Cells</option>
+                <option value="history-passage">Humanities: Ancient Roman Architecture</option>
+                <option value="english-lit">Literature: The Story of Robin Hood</option>
+              </select>
+            </div>
+            
+            <div class="subject-tag" id="subject-badge">
+              <i class="fa-solid fa-tag"></i> General
+            </div>
+          </div>
+
+          <div class="upload-actions">
+            <button id="btn-load-text" class="accent-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Adapt Document for Reading</button>
+          </div>
+        </div>
+
+        <!-- Mode B: Active Interactive Reader Screen -->
+        <div id="panel-reader" class="workspace-card card" style="display: none;">
+          <div class="reader-toolbar">
+            <button id="btn-back-upload" class="secondary-btn"><i class="fa-solid fa-chevron-left"></i> Change Document</button>
+            
+            <div class="audio-controls-bar">
+              <button id="btn-play-speech" class="play-btn" title="Read Aloud"><i class="fa-solid fa-circle-play"></i> Play</button>
+              <button id="btn-pause-speech" class="pause-btn" title="Pause Speech" style="display:none;"><i class="fa-solid fa-circle-pause"></i> Pause</button>
+              <button id="btn-stop-speech" class="stop-btn" title="Stop Reading"><i class="fa-solid fa-circle-stop"></i> Stop</button>
+            </div>
+
+            <!-- Format/Layout Toggles -->
+            <div class="layout-toggle-bar" style="display: flex; gap: 4px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 2px; background-color: var(--bg-card);">
+              <button id="btn-view-reflowed" class="tab-btn active" style="padding: 4px 10px; font-size: 0.85rem; border: none; border-radius: 4px; cursor: pointer;"><i class="fa-solid fa-align-left"></i> Reflowed Text</button>
+              <button id="btn-view-pdf" class="tab-btn" style="padding: 4px 10px; font-size: 0.85rem; border: none; border-radius: 4px; cursor: pointer;" disabled><i class="fa-regular fa-file-pdf"></i> Original PDF</button>
+            </div>
+
+            <div class="reader-mode-indicator">
+              Subject: <strong id="reader-subject-indicator">English</strong>
+            </div>
+          </div>
+
+          <!-- The Rendered Text Output Panel -->
+          <div class="reader-content-scroll">
+            <div id="reader-content" class="font-lexend">
+              <!-- Dynamically populated word spans will render here -->
+            </div>
+
+            <!-- PDF Canvas View container -->
+            <div id="pdf-canvas-container" style="display: none; flex-direction: column; gap: 20px; align-items: center; width: 100%; padding: 10px;"></div>
+            
+            <!-- Reading Ruler Overlay -->
+            <div id="reading-ruler" class="reading-ruler"></div>
+          </div>
+
+          <div class="reader-tips">
+            <i class="fa-solid fa-circle-info"></i> Tip: Click on any word to hear its pronunciation, see syllable chunking, or simplify a paragraph.
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right Interactive AI Helper Panel -->
+      <aside class="sidebar-ai card">
+        <div class="ai-section-header">
+          <h2><i class="fa-solid fa-brain"></i> AI Companion</h2>
+          <span class="provider-pill">OpenAI + Exa</span>
+        </div>
+
+        <!-- Section 1: Dynamic Dictionary (Activated on Word Clicks) -->
+        <div class="ai-card" id="ai-dict-card">
+          <div class="ai-card-title">
+            <i class="fa-solid fa-spell-check"></i>
+            <h4>Word Decoder</h4>
+          </div>
+          <div id="ai-dict-empty" class="ai-card-placeholder">
+            Click on any word in the text to see visual syllable chunking, phonetic guides, and simple translations.
+          </div>
+          <div id="ai-dict-content" class="ai-card-body" style="display: none;">
+            <div class="word-header">
+              <h3 id="target-word">Photosynthesis</h3>
+              <button id="btn-speak-target" class="speak-word-btn" title="Hear word"><i class="fa-solid fa-volume-high"></i></button>
+            </div>
+            
+            <!-- Syllable Breakups Visual -->
+            <div class="syllable-display">
+              <label>Syllables</label>
+              <div id="syllables-chunked" class="syllable-chips">
+                <span>pho</span><span>to</span><span>syn</span><span>the</span><span>sis</span>
+              </div>
+            </div>
+
+            <!-- Phonetic guide -->
+            <div class="phonetic-display">
+              <label>Phonetics</label>
+              <div id="phonetic-guide">/ foh-tuh-sin-thuh-sis /</div>
+            </div>
+
+            <!-- Dyslexia Friendly Easy Definition -->
+            <div class="def-display">
+              <label>Simple Meaning</label>
+              <p id="word-definition">How green plants use sunlight to make food from water and carbon dioxide.</p>
+            </div>
+
+            <!-- Exa Concept Finder -->
+            <div class="exa-display">
+              <label>Concept Analogy (via Exa)</label>
+              <p id="exa-analogy">Think of it like baking a cake, where the sun is the oven, water and air are the flour and sugar, and the plant is the chef.</p>
+              <div id="exa-citations" style="margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Text Simplifier & Paragraph Rewriting -->
+        <div class="ai-card" id="ai-simplifier-card">
+          <div class="ai-card-title">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <h4>Text Simplifier</h4>
+          </div>
+          <div id="ai-simplifier-empty" class="ai-card-placeholder">
+            Select a paragraph by highlighting or clicking "Simplify Paragraph" context buttons inside the text.
+          </div>
+          <div id="ai-simplifier-content" class="ai-card-body" style="display: none;">
+            <div class="simplifier-meta">
+              <span>Original Selection</span>
+              <p id="simplified-original" class="truncated-text">"Plants carry out a process called photosynthesis..."</p>
+            </div>
+            
+            <div class="simplified-output">
+              <label>Simplified View (Preserves terms)</label>
+              <div id="simplified-result" class="simplified-box">
+                <!-- Simplified text results -->
+              </div>
+            </div>
+
+            <div class="simplifier-actions">
+              <button id="btn-replace-original" class="secondary-btn btn-sm"><i class="fa-solid fa-copy"></i> Replace in Reader</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </section>
+
+    <!-- ==================== TEACHER INTERACTIVE DIGEST ==================== -->
+    <section id="teacher-workspace" class="workspace-section">
+      <div class="teacher-grid">
+        
+        <!-- Dashboard Summary Stat Cards -->
+        <div class="teacher-overview-card card">
+          <div class="overview-header">
+            <h2><i class="fa-solid fa-chart-line"></i> Classroom Literacy Overview</h2>
+            <p>Weekly passive log compiling areas of reading difficulties across student worksheets.</p>
+          </div>
+          
+          <div class="stats-row">
+            <div class="stat-box">
+              <span class="stat-num" id="stat-words-count">0</span>
+              <span class="stat-label">Struggled Words Logged</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num" id="stat-simplifications">0</span>
+              <span class="stat-label">Sentences Simplified</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num" id="stat-avg-speed">1.0x</span>
+              <span class="stat-label">Avg. Reading Speed</span>
+            </div>
+          </div>
+
+          <div class="digest-actions">
+            <button id="btn-refresh-digest" class="primary-btn"><i class="fa-solid fa-rotate"></i> Sync Live Logs</button>
+            <button id="btn-export-digest" class="secondary-btn"><i class="fa-solid fa-download"></i> Export Digest Report</button>
+            <button id="btn-clear-digest" class="danger-btn"><i class="fa-solid fa-trash-can"></i> Reset Tracker</button>
+          </div>
+        </div>
+
+        <!-- Struggled Word List -->
+        <div class="digest-detail-card card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Most Challenging Vocabulary</h3>
+            <span>Aggregated from reading sessions</span>
+          </div>
+          <div class="digest-table-wrapper">
+            <table class="digest-table">
+              <thead>
+                <tr>
+                  <th>Word</th>
+                  <th>Subject</th>
+                  <th>Actions Triggered</th>
+                  <th>Difficulty Level</th>
+                </tr>
+              </thead>
+              <tbody id="struggled-words-tbody">
+                <!-- Dynamically populated rows -->
+                <tr>
+                  <td colspan="4" class="table-empty">No reading sessions recorded yet. Student struggles will show here.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Simplified Sentences Insights -->
+        <div class="digest-detail-card card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-compress"></i> Sentences Requiring Sentence Assistance</h3>
+            <span>Tracks context students simplified</span>
+          </div>
+          <div class="sentences-digest-list" id="simplified-sentences-list">
+            <!-- Dynamically populated list of simplified blocks -->
+            <p class="table-empty">No sentences simplified yet. Areas of reading fatigue will register here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== DRAWER/MODAL: API KEYS CONFIGURATION ==================== -->
+  <div id="modal-api-settings" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-gear"></i> Developer API Settings</h2>
+        <button id="btn-close-modal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="settings-hint">
+          Provide your keys to run OpenAI-powered sentence simplification, syllable chunking, and Exa analogies live. 
+          If empty, the app runs in <strong>High-Fidelity Simulation Mode</strong>, enabling fully operational tests with demo materials.
+        </p>
+        
+        <div class="input-field">
+          <label for="input-openai-key">OpenAI API Key</label>
+          <input type="password" id="input-openai-key" placeholder="sk-proj-...">
+        </div>
+
+        <div class="input-field">
+          <label for="input-exa-key">Exa API Key</label>
+          <input type="password" id="input-exa-key" placeholder="exa-...">
+        </div>
+
+        <div class="input-field">
+          <label for="input-elevenlabs-key">ElevenLabs API Key</label>
+          <input type="password" id="input-elevenlabs-key" placeholder="eleven-... or key">
+        </div>
+
+        <div class="input-field">
+          <label for="select-elevenlabs-model">ElevenLabs Model</label>
+          <select id="select-elevenlabs-model" style="width:100%; padding:8px 12px; border-radius:var(--border-radius-sm); border:1px solid var(--border-color); background-color:var(--bg-card); color:var(--text-main); font-family:inherit;">
+            <option value="eleven_turbo_v2_5" selected>Eleven Turbo v2.5 (Fastest / Recommended)</option>
+            <option value="eleven_multilingual_v2">Eleven Multilingual v2 (Rich / Accurate)</option>
+            <option value="eleven_monolingual_v1">Eleven Monolingual v1 (Classic)</option>
+          </select>
+        </div>
+
+        <div class="mode-indicator-box" id="api-status-indicator">
+          <i class="fa-solid fa-toggle-off"></i> Running in: <strong>Simulation & Demo Mode</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-save-keys" class="primary-btn">Save API Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF.js Global Script dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Point PDF.js to the worker script CDN to enable clean worker execution
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+
+  <!-- Application Logic Modules -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
