@@ -846,12 +846,12 @@ body.theme-dark .sentence-chunk.even {
 }
 .speak-word-btn:hover { background-color: var(--primary-hover); }
 
-.syllable-display, .phonetic-display, .def-display, .exa-display {
+.syllable-display, .phonetic-display, .def-display, .concept-display {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.syllable-display label, .phonetic-display label, .def-display label, .exa-display label {
+.syllable-display label, .phonetic-display label, .def-display label, .concept-display label {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -879,7 +879,7 @@ body.theme-dark .sentence-chunk.even {
   color: var(--primary-color);
 }
 
-.def-display p, .exa-display p {
+.def-display p, .concept-display p {
   font-size: 13px;
   background-color: var(--bg-card);
   padding: 8px 12px;
@@ -887,7 +887,7 @@ body.theme-dark .sentence-chunk.even {
   border: 1px solid var(--border-color);
   line-height: 1.5;
 }
-.exa-display p {
+.concept-display p {
   border-left: 3px solid var(--accent-color);
 }
 

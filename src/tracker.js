@@ -1,31 +1,39 @@
 /* ==========================================================================
    Sup' Read With Me Passive Difficulty Tracker (src/tracker.js)
+   Persists student reading telemetry to Firestore so the Teacher Dashboard
+   can see classroom-wide struggles across every signed-in student.
    ========================================================================== */
 
-const STORAGE_KEYS = {
-  WORD_LOGS: 'readem_word_logs',
-  SENTENCE_LOGS: 'readem_sentence_logs',
-  SPEED_LOGS: 'readem_speed_logs',
+const COLLECTIONS = {
+  WORD_LOGS: 'readem_mock_wordLogs',
+  SENTENCE_LOGS: 'readem_mock_sentenceLogs',
+  SPEED_LOGS: 'readem_mock_speedLogs',
 };
 
-// Retrieve initial data from localStorage or default
-function getStoredData(key, defaultVal) {
-  try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : defaultVal;
-  } catch (e) {
-    console.error('Error reading localStorage logs:', e);
-    return defaultVal;
-  }
+const ACTION_FIELD_MAP = {
+  click: 'clicks',
+  syllabify: 'syllabified',
+  define: 'defined',
+  audio_repeat: 'audioRepeated',
+};
+
+let currentUid = null;
+
+export function setTrackerUser(uid) {
+  currentUid = uid;
 }
 
-function setStoredData(key, value) {
+const getStorageItem = (key) => {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    return JSON.parse(localStorage.getItem(key) || '[]');
   } catch (e) {
-    console.error('Error writing localStorage logs:', e);
+    return [];
   }
-}
+};
+
+const saveStorageItem = (key, data) => {
+  localStorage.setItem(key, JSON.stringify(data));
+};
 
 export const Tracker = {
   /**
@@ -34,34 +42,37 @@ export const Tracker = {
    * @param {string} subject - The subject domain (e.g. Science, Math)
    * @param {string} actionType - 'click' | 'syllabify' | 'define' | 'audio_repeat'
    */
-  logWordDifficulty(word, subject = 'General', actionType = 'click') {
+  async logWordDifficulty(word, subject = 'General', actionType = 'click') {
+    if (!currentUid) return;
+
     const cleanWord = word.trim().toLowerCase().replace(/[^a-zA-Z0-9-]/g, '');
     if (!cleanWord || cleanWord.length < 2) return;
 
-    const logs = getStoredData(STORAGE_KEYS.WORD_LOGS, []);
+    const field = ACTION_FIELD_MAP[actionType];
+    if (!field) return;
+
+    const logs = getStorageItem(COLLECTIONS.WORD_LOGS);
+    const key = `${currentUid}_${cleanWord}_${subject}`;
     
-    // Find existing entry
-    let entry = logs.find(l => l.word === cleanWord && l.subject === subject);
+    let entry = logs.find(l => l.key === key);
     if (!entry) {
       entry = {
+        key,
+        uid: currentUid,
         word: cleanWord,
-        subject: subject,
+        subject,
         clicks: 0,
         syllabified: 0,
         defined: 0,
         audioRepeated: 0,
-        lastUpdated: Date.now()
       };
       logs.push(entry);
     }
-
-    if (actionType === 'click') entry.clicks++;
-    if (actionType === 'syllabify') entry.syllabified++;
-    if (actionType === 'define') entry.defined++;
-    if (actionType === 'audio_repeat') entry.audioRepeated++;
     
-    entry.lastUpdated = Date.now();
-    setStoredData(STORAGE_KEYS.WORD_LOGS, logs);
+    entry[field] = (entry[field] || 0) + 1;
+    entry.lastUpdated = new Date().toISOString();
+    
+    saveStorageItem(COLLECTIONS.WORD_LOGS, logs);
   },
 
   /**
@@ -70,44 +81,53 @@ export const Tracker = {
    * @param {string} simplified - The simplified result
    * @param {string} subject - The subject domain
    */
-  logSentenceSimplification(original, simplified, subject = 'General') {
-    if (!original || !simplified) return;
-    const logs = getStoredData(STORAGE_KEYS.SENTENCE_LOGS, []);
-    
+  async logSentenceSimplification(original, simplified, subject = 'General') {
+    if (!currentUid || !original || !simplified) return;
+
+    const logs = getStorageItem(COLLECTIONS.SENTENCE_LOGS);
     logs.push({
+      uid: currentUid,
       original: original.trim(),
       simplified: simplified.trim(),
-      subject: subject,
-      timestamp: Date.now()
+      subject,
+      timestamp: new Date().toISOString(),
     });
-
-    setStoredData(STORAGE_KEYS.SENTENCE_LOGS, logs);
+    
+    saveStorageItem(COLLECTIONS.SENTENCE_LOGS, logs);
   },
 
   /**
    * Log speech speed selection to aggregate average reading speeds
    * @param {number} rate - The speed multiplier selected (e.g. 0.8, 1.2)
    */
-  logReadingSpeed(rate) {
-    const logs = getStoredData(STORAGE_KEYS.SPEED_LOGS, []);
+  async logReadingSpeed(rate) {
+    if (!currentUid) return;
+
+    const logs = getStorageItem(COLLECTIONS.SPEED_LOGS);
     logs.push({
+      uid: currentUid,
       rate: parseFloat(rate),
-      timestamp: Date.now()
+      timestamp: new Date().toISOString(),
     });
-    setStoredData(STORAGE_KEYS.SPEED_LOGS, logs);
+    
+    saveStorageItem(COLLECTIONS.SPEED_LOGS, logs);
   },
 
   /**
-   * Retrieve aggregated insights for words
+   * Retrieve aggregated insights for words across the whole classroom
    * Returns list of words with total count, subject, and difficulty classification
    */
-  getWordDigest() {
-    const logs = getStoredData(STORAGE_KEYS.WORD_LOGS, []);
-    
+  async getWordDigest() {
+    const logs = getStorageItem(COLLECTIONS.WORD_LOGS);
+
     return logs
-      .map(entry => {
-        const totalWeight = entry.clicks * 1 + entry.syllabified * 2 + entry.defined * 3 + entry.audioRepeated * 2;
-        
+      .map((entry) => {
+        const clicks = entry.clicks || 0;
+        const syllabified = entry.syllabified || 0;
+        const defined = entry.defined || 0;
+        const audioRepeated = entry.audioRepeated || 0;
+        const totalWeight = clicks * 1 + syllabified * 2 + defined * 3 + audioRepeated * 2;
+
         let difficulty = 'low';
         if (totalWeight >= 6) {
           difficulty = 'high';
@@ -116,36 +136,48 @@ export const Tracker = {
         }
 
         const actions = [];
-        if (entry.clicks > 0) actions.push(`Clicked (${entry.clicks})`);
-        if (entry.syllabified > 0) actions.push(`Split Syllables (${entry.syllabified})`);
-        if (entry.defined > 0) actions.push(`Defined (${entry.defined})`);
-        if (entry.audioRepeated > 0) actions.push(`Replayed (${entry.audioRepeated})`);
+        if (clicks > 0) actions.push(`Clicked (${clicks})`);
+        if (syllabified > 0) actions.push(`Split Syllables (${syllabified})`);
+        if (defined > 0) actions.push(`Defined (${defined})`);
+        if (audioRepeated > 0) actions.push(`Replayed (${audioRepeated})`);
 
         return {
           word: entry.word,
           subject: entry.subject,
           actionsTriggered: actions.join(', '),
-          difficulty: difficulty,
-          weight: totalWeight
+          difficulty,
+          weight: totalWeight,
         };
       })
       .sort((a, b) => b.weight - a.weight); // Most struggled words first
   },
 
   /**
-   * Retrieve all simplified sentences
+   * Retrieve all simplified sentences across the classroom, latest first.
+   * Deduplicated by original text so a sentence simplified multiple times
+   * (by the same or different students) only shows up once.
    */
-  getSentenceDigest() {
-    return getStoredData(STORAGE_KEYS.SENTENCE_LOGS, []).reverse(); // Latest first
+  async getSentenceDigest() {
+    const logs = getStorageItem(COLLECTIONS.SENTENCE_LOGS);
+    const sorted = [...logs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const seenOriginals = new Set();
+    const deduped = [];
+    sorted.forEach((entry) => {
+      if (seenOriginals.has(entry.original)) return;
+      seenOriginals.add(entry.original);
+      deduped.push(entry);
+    });
+    return deduped;
   },
 
   /**
-   * Get general aggregate statistics
+   * Get general aggregate statistics across the classroom
    */
-  getStats() {
-    const wordLogs = getStoredData(STORAGE_KEYS.WORD_LOGS, []);
-    const sentenceLogs = getStoredData(STORAGE_KEYS.SENTENCE_LOGS, []);
-    const speedLogs = getStoredData(STORAGE_KEYS.SPEED_LOGS, []);
+  async getStats() {
+    const wordLogs = getStorageItem(COLLECTIONS.WORD_LOGS);
+    const sentenceLogs = getStorageItem(COLLECTIONS.SENTENCE_LOGS);
+    const speedLogs = getStorageItem(COLLECTIONS.SPEED_LOGS);
 
     const totalStruggledWords = wordLogs.length;
     const totalSimplifications = sentenceLogs.length;
@@ -153,39 +185,39 @@ export const Tracker = {
     // Calculate average speed
     let avgSpeed = 1.0;
     if (speedLogs.length > 0) {
-      const sum = speedLogs.reduce((acc, curr) => acc + curr.rate, 0);
+      const sum = speedLogs.reduce((acc, entry) => acc + (entry.rate || 0), 0);
       avgSpeed = (sum / speedLogs.length).toFixed(1);
     }
 
     return {
       totalStruggledWords,
       totalSimplifications,
-      avgSpeed: `${avgSpeed}x`
+      avgSpeed: `${avgSpeed}x`,
     };
   },
 
   /**
-   * Reset all data logs
+   * Reset all classroom-wide data logs
    */
-  clearLogs() {
-    localStorage.removeItem(STORAGE_KEYS.WORD_LOGS);
-    localStorage.removeItem(STORAGE_KEYS.SENTENCE_LOGS);
-    localStorage.removeItem(STORAGE_KEYS.SPEED_LOGS);
+  async clearLogs() {
+    localStorage.removeItem(COLLECTIONS.WORD_LOGS);
+    localStorage.removeItem(COLLECTIONS.SENTENCE_LOGS);
+    localStorage.removeItem(COLLECTIONS.SPEED_LOGS);
   },
 
   /**
    * Export classroom summary as text digest
    */
-  exportDigestReport() {
-    const stats = this.getStats();
-    const words = this.getWordDigest();
-    const sentences = this.getSentenceDigest();
+  async exportDigestReport() {
+    const stats = await this.getStats();
+    const words = await this.getWordDigest();
+    const sentences = await this.getSentenceDigest();
 
     let text = `==================================================\n`;
     text += `SUP' READ WITH ME WEEKLY LITERACY DIGEST REPORT\n`;
     text += `Generated: ${new Date().toLocaleString()}\n`;
     text += `==================================================\n\n`;
-    
+
     text += `SUMMARY METRICS:\n`;
     text += `- Total Unique Struggled Words Logged: ${stats.totalStruggledWords}\n`;
     text += `- Sentences Simplified by Students: ${stats.totalSimplifications}\n`;

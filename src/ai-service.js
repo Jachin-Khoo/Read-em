@@ -4,7 +4,6 @@
 
 const API_KEYS = {
   OPENAI: 'readem_openai_key',
-  EXA: 'readem_exa_key',
   ELEVENLABS: 'readem_elevenlabs_key',
   ELEVENLABS_MODEL: 'readem_elevenlabs_model',
 };
@@ -159,9 +158,8 @@ function fallbackWordSplit(word) {
 }
 
 export const AIService = {
-  saveKeys(openaiKey, exaKey, elevenlabsKey, elevenlabsModel) {
+  saveKeys(openaiKey, elevenlabsKey, elevenlabsModel) {
     localStorage.setItem(API_KEYS.OPENAI, openaiKey.trim());
-    localStorage.setItem(API_KEYS.EXA, exaKey.trim());
     localStorage.setItem(API_KEYS.ELEVENLABS, elevenlabsKey.trim());
     localStorage.setItem(API_KEYS.ELEVENLABS_MODEL, elevenlabsModel || 'eleven_turbo_v2_5');
   },
@@ -169,7 +167,6 @@ export const AIService = {
   getKeys() {
     return {
       openai: localStorage.getItem(API_KEYS.OPENAI) || import.meta.env.VITE_OPENAI_API_KEY || '',
-      exa: localStorage.getItem(API_KEYS.EXA) || import.meta.env.VITE_EXA_API_KEY || '',
       elevenlabs: localStorage.getItem(API_KEYS.ELEVENLABS) || import.meta.env.VITE_ELEVENLABS_API_KEY || '',
       elevenlabsModel: localStorage.getItem(API_KEYS.ELEVENLABS_MODEL) || import.meta.env.VITE_ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5',
     };
@@ -266,27 +263,9 @@ Rules:
     const cleanWord = word.trim().toLowerCase().replace(/[^a-zA-Z0-9-]/g, '');
     const keys = this.getKeys();
 
-    // Helper to generate mock Exa citations offline
-    const getMockCitations = (w) => [
-      { title: `${w.charAt(0).toUpperCase() + w.slice(1)} - Simple Kid Explanation`, url: `https://exa.ai/search?q=${w}+child+friendly+analogy` },
-      { title: `What is ${w.charAt(0).toUpperCase() + w.slice(1)}? - WikiKids`, url: `https://exa.ai/search?q=what+is+${w}+for+kids` }
-    ];
-
     // 1. Check Mock Data Database first
     if (MOCK_WORDS[cleanWord]) {
-      const mockResult = { ...MOCK_WORDS[cleanWord] };
-      mockResult.citations = getMockCitations(cleanWord);
-      
-      if (keys.exa) {
-        try {
-          const exaData = await this.fetchExaAnalogy(cleanWord);
-          mockResult.analogy = exaData.analogy;
-          mockResult.citations = exaData.citations;
-        } catch (err) {
-          console.warn('Exa fetch failed, using mock analogy:', err);
-        }
-      }
-      return mockResult;
+      return { ...MOCK_WORDS[cleanWord] };
     }
 
     // 2. Fallback: If no OpenAI key, generate algorithmic fallback
@@ -297,8 +276,7 @@ Rules:
         syllables: syllables,
         phonetics: `/ ${syllables.join('-')} /`,
         definition: `A term used in ${subject}. (Add an OpenAI API Key for dynamic definitions).`,
-        analogy: offlineAnalogy || `To see live AI analogies for "${cleanWord}", please save your OpenAI or Exa API Key in the settings. In Simulation Mode, try clicking terms like "photosynthesis", "denominator", "aqueduct", or "outlaw" to see mock analogies!`,
-        citations: offlineAnalogy ? getMockCitations(cleanWord) : []
+        analogy: offlineAnalogy || `To see live AI analogies for "${cleanWord}", add an OpenAI API key. In Simulation Mode, try clicking terms like "photosynthesis", "denominator", "aqueduct", or "outlaw" to see mock analogies!`
       };
     }
 
@@ -343,34 +321,14 @@ Response JSON structure:
       const resJson = await response.json();
       const aiData = JSON.parse(resJson.choices[0].message.content);
       
-      // Let's get the Exa analogy
-      let analogy = 'Add an Exa API Key to generate real-time analogies from the web.';
-      let citations = [];
-      
-      if (keys.exa) {
-        try {
-          const exaData = await this.fetchExaAnalogy(cleanWord);
-          analogy = exaData.analogy;
-          citations = exaData.citations;
-        } catch (e) {
-          analogy = `Could not fetch live web analogy: ${e.message}`;
-        }
-      } else {
-        // Fallback OpenAI analogy if no Exa key but we have OpenAI key
-        if (MOCK_OFFLINE_ANALOGIES[cleanWord]) {
-          analogy = MOCK_OFFLINE_ANALOGIES[cleanWord];
-          citations = getMockCitations(cleanWord);
-        } else {
-          analogy = await this.getOpenAIAnalogy(cleanWord);
-        }
-      }
+      // Generate a kid-friendly analogy
+      const analogy = MOCK_OFFLINE_ANALOGIES[cleanWord] || await this.getOpenAIAnalogy(cleanWord);
 
       return {
         syllables: aiData.syllables || fallbackWordSplit(cleanWord),
         phonetics: aiData.phonetics || `/ ${cleanWord} /`,
         definition: aiData.definition || 'Simple meaning is unavailable.',
-        analogy: analogy,
-        citations: citations
+        analogy: analogy
       };
     } catch (e) {
       console.error('Word decode error:', e);
@@ -380,14 +338,13 @@ Response JSON structure:
         syllables: syllables,
         phonetics: `/ ${syllables.join('-')} /`,
         definition: `Failed to fetch definition: ${e.message}`,
-        analogy: 'No analogy available.',
-        citations: []
+        analogy: 'No analogy available.'
       };
     }
   },
 
   /**
-   * Helper to retrieve simple analogies using OpenAI when Exa is missing
+   * Helper to retrieve simple analogies using OpenAI.
    */
   async getOpenAIAnalogy(word) {
     const keys = this.getKeys();
@@ -417,56 +374,6 @@ Response JSON structure:
     } catch (e) {
       return 'Analogy search is unavailable.';
     }
-  },
-
-  /**
-   * Fetch analogy explanation via Exa Search
-   */
-  async fetchExaAnalogy(word) {
-    const keys = this.getKeys();
-    if (!keys.exa) throw new Error('Exa Key not set');
-
-    // Query Exa search to retrieve kids analogies
-    const response = await fetch('https://api.exa.ai/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': keys.exa
-      },
-      body: JSON.stringify({
-        query: `simple child friendly analogy explaining what ${word} is`,
-        useAutoprompt: true,
-        numResults: 2,
-        highlights: {
-          numSentences: 2
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Exa request failed');
-    }
-
-    const data = await response.json();
-    if (data.results && data.results.length > 0) {
-      const bestHighlight = data.results[0].highlights?.[0] || data.results[0].text || '';
-      const analogyText = bestHighlight.replace(/<[^>]*>/g, '').trim();
-      
-      const citations = data.results.map(r => ({
-        title: r.title || r.url,
-        url: r.url
-      }));
-
-      return {
-        analogy: analogyText,
-        citations: citations
-      };
-    }
-    
-    return {
-      analogy: `Searched the web for "${word}" but found no simple child analogies.`,
-      citations: []
-    };
   },
 
   /**

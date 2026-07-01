@@ -4,8 +4,9 @@
 
 import { TTS } from './tts.js';
 import { AIService } from './ai-service.js';
-import { Tracker } from './tracker.js';
+import { Tracker, setTrackerUser } from './tracker.js';
 import { extractTextFromPDF, readTextFile } from './pdf-handler.js';
+import { Auth } from './auth.js';
 
 // Global application state
 let appState = {
@@ -43,11 +44,17 @@ const DEMO_MATERIALS = {
 const doc = {
   // Navigation & Role Layouts
   viewLandingPortal: document.getElementById('view-landing-portal'),
-  cardEnterReader: document.getElementById('card-enter-reader'),
-  cardEnterTeacher: document.getElementById('card-enter-teacher'),
-  teacherPin: document.getElementById('teacher-pin'),
-  btnSubmitTeacher: document.getElementById('btn-submit-teacher'),
   btnLogout: document.getElementById('btn-logout'),
+
+  // Auth Sign In / Sign Up
+  tabSignIn: document.getElementById('tab-signin'),
+  tabSignUp: document.getElementById('tab-signup'),
+  authRoleField: document.getElementById('auth-role-field'),
+  authRoleSelect: document.getElementById('auth-role-select'),
+  authEmail: document.getElementById('auth-email'),
+  authPassword: document.getElementById('auth-password'),
+  authError: document.getElementById('auth-error'),
+  btnAuthSubmit: document.getElementById('btn-auth-submit'),
   
   readerWorkspace: document.getElementById('reader-workspace'),
   teacherWorkspace: document.getElementById('teacher-workspace'),
@@ -111,8 +118,7 @@ const doc = {
   syllablesChunked: document.getElementById('syllables-chunked'),
   phoneticGuide: document.getElementById('phonetic-guide'),
   wordDefinition: document.getElementById('word-definition'),
-  exaAnalogy: document.getElementById('exa-analogy'),
-  exaCitations: document.getElementById('exa-citations'),
+  conceptAnalogy: document.getElementById('concept-analogy'),
 
   aiSimplifierEmpty: document.getElementById('ai-simplifier-empty'),
   aiSimplifierContent: document.getElementById('ai-simplifier-content'),
@@ -128,29 +134,31 @@ const doc = {
   btnExportDigest: document.getElementById('btn-export-digest'),
   btnClearDigest: document.getElementById('btn-clear-digest'),
   struggledWordsTbody: document.getElementById('struggled-words-tbody'),
-  simplifiedSentencesList: document.getElementById('simplified-sentences-list'),
-
-  // API Modal Settings Drawer
-  btnApiSettings: document.getElementById('btn-api-settings'),
-  modalApiSettings: document.getElementById('modal-api-settings'),
-  btnCloseModal: document.getElementById('btn-close-modal'),
-  btnSaveKeys: document.getElementById('btn-save-keys'),
-  inputOpenAIKey: document.getElementById('input-openai-key'),
-  inputExaKey: document.getElementById('input-exa-key'),
-  inputElevenLabsKey: document.getElementById('input-elevenlabs-key'),
-  selectElevenLabsModel: document.getElementById('select-elevenlabs-model'),
-  apiStatusIndicator: document.getElementById('api-status-indicator')
+  simplifiedSentencesList: document.getElementById('simplified-sentences-list')
 };
 
 // Keep tracking variables
 let lastSimplifiedParagraphIdx = -1;
+let authMode = 'signin'; // 'signin' | 'signup'
 
 /* ==================== INITIALIZATION ==================== */
 document.addEventListener('DOMContentLoaded', () => {
   initUIPreferences();
   initVoiceList();
   initEventListeners();
-  updateApiStatusIndicator();
+
+  // React to Firebase auth state: route signed-in users straight to their
+  // role's workspace, otherwise show the sign in/up portal.
+  Auth.onAuthChange(async (user) => {
+    if (user) {
+      const role = await Auth.getUserRole(user.uid);
+      setTrackerUser(user.uid);
+      switchRole(role === 'teacher' ? 'teacher' : 'reader');
+    } else {
+      setTrackerUser(null);
+      showLandingPortal();
+    }
+  });
 });
 
 // Configure UI inputs from stylesheet variables
@@ -181,25 +189,18 @@ function initVoiceList() {
 
 // Bind interactive event actions
 function initEventListeners() {
-  // Landing Portal Navigation Toggles
-  doc.cardEnterReader.addEventListener('click', () => switchRole('reader'));
-  doc.btnSubmitTeacher.addEventListener('click', () => handleTeacherLogin());
-  doc.teacherPin.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleTeacherLogin();
+  // Landing Portal Auth Form
+  doc.tabSignIn.addEventListener('click', () => setAuthMode('signin'));
+  doc.tabSignUp.addEventListener('click', () => setAuthMode('signup'));
+  doc.btnAuthSubmit.addEventListener('click', () => handleAuthSubmit());
+  doc.authPassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleAuthSubmit();
   });
   doc.btnLogout.addEventListener('click', logOut);
 
   // PDF Original Layout View Toggles
   doc.btnViewReflowed.addEventListener('click', () => switchLayoutView('reflowed'));
   doc.btnViewPdf.addEventListener('click', () => switchLayoutView('pdf'));
-
-  // Settings Drawer Modal Toggle
-  doc.btnApiSettings.addEventListener('click', openApiModal);
-  doc.btnCloseModal.addEventListener('click', closeApiModal);
-  doc.btnSaveKeys.addEventListener('click', saveApiKeys);
-  window.addEventListener('click', (e) => {
-    if (e.target === doc.modalApiSettings) closeApiModal();
-  });
 
   // Typography Settings Changes
   doc.fontFamily.addEventListener('change', () => {
@@ -434,15 +435,15 @@ function initEventListeners() {
 
   // Teacher Digest Dashboard
   doc.btnRefreshDigest.addEventListener('click', refreshTeacherDigest);
-  doc.btnClearDigest.addEventListener('click', () => {
+  doc.btnClearDigest.addEventListener('click', async () => {
     if (confirm('Are you sure you want to reset all logged telemetry charts and difficulty lists?')) {
-      Tracker.clearLogs();
+      await Tracker.clearLogs();
       refreshTeacherDigest();
     }
   });
-  doc.btnExportDigest.addEventListener('click', () => {
-    const reportText = Tracker.exportDigestReport();
-    
+  doc.btnExportDigest.addEventListener('click', async () => {
+    const reportText = await Tracker.exportDigestReport();
+
     // Create text file download stream
     const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
@@ -472,25 +473,69 @@ function switchRole(role) {
   }
 }
 
-function handleTeacherLogin() {
-  const pin = doc.teacherPin.value;
-  if (pin === 'teacher123') {
-    doc.teacherPin.value = ''; // clear PIN
-    switchRole('teacher');
-  } else {
-    alert('Access Denied: Invalid Teacher PIN.');
+function setAuthMode(mode) {
+  authMode = mode;
+  doc.tabSignIn.classList.toggle('active', mode === 'signin');
+  doc.tabSignUp.classList.toggle('active', mode === 'signup');
+  doc.authRoleField.style.display = mode === 'signup' ? 'block' : 'none';
+  doc.btnAuthSubmit.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+  doc.authError.style.display = 'none';
+}
+
+async function handleAuthSubmit() {
+  const email = doc.authEmail.value.trim();
+  const password = doc.authPassword.value;
+
+  if (!email || !password) {
+    showAuthError('Please enter both an email and password.');
+    return;
+  }
+
+  doc.btnAuthSubmit.disabled = true;
+  doc.authError.style.display = 'none';
+
+  try {
+    if (authMode === 'signup') {
+      const role = doc.authRoleSelect.value;
+      await Auth.signUp(email, password, role);
+    } else {
+      await Auth.signIn(email, password);
+    }
+    doc.authPassword.value = '';
+    // Auth.onAuthChange listener handles routing into the correct workspace.
+  } catch (err) {
+    showAuthError(describeAuthError(err));
+  } finally {
+    doc.btnAuthSubmit.disabled = false;
   }
 }
 
-function logOut() {
-  // Hide workspaces
+function showAuthError(message) {
+  doc.authError.textContent = message;
+  doc.authError.style.display = 'block';
+}
+
+function describeAuthError(err) {
+  const code = err && err.code;
+  if (code === 'auth/email-already-in-use') return 'An account with this email already exists. Try signing in instead.';
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') return 'Incorrect email or password.';
+  if (code === 'auth/user-not-found') return 'No account found with this email. Try signing up instead.';
+  if (code === 'auth/weak-password') return 'Password should be at least 6 characters.';
+  if (code === 'auth/invalid-email') return 'Please enter a valid email address.';
+  return err.message || 'Authentication failed. Please try again.';
+}
+
+function showLandingPortal() {
   doc.readerWorkspace.classList.remove('active');
   doc.teacherWorkspace.classList.remove('active');
   doc.btnLogout.style.display = 'none';
-
-  // Show landing view
   doc.viewLandingPortal.classList.add('active');
   appState.role = null;
+}
+
+function logOut() {
+  Auth.signOut();
+  // Auth.onAuthChange listener calls showLandingPortal() once sign-out completes.
 }
 
 function switchLayoutView(view) {
@@ -548,42 +593,6 @@ async function renderPDFCanvasPages(pdf) {
   } catch (err) {
     console.error('PDF rendering failed:', err);
     doc.pdfCanvasContainer.innerHTML = `<span style="color:var(--color-danger)">Failed to render original PDF: ${err.message}</span>`;
-  }
-}
-
-/* ==================== API CREDENTIAL DRAWER ==================== */
-function openApiModal() {
-  const keys = AIService.getKeys();
-  doc.inputOpenAIKey.value = keys.openai;
-  doc.inputExaKey.value = keys.exa;
-  doc.inputElevenLabsKey.value = keys.elevenlabs;
-  doc.selectElevenLabsModel.value = keys.elevenlabsModel || 'eleven_turbo_v2_5';
-  doc.modalApiSettings.style.display = 'flex';
-}
-
-function closeApiModal() {
-  doc.modalApiSettings.style.display = 'none';
-}
-
-function saveApiKeys() {
-  const openai = doc.inputOpenAIKey.value.trim();
-  const exa = doc.inputExaKey.value.trim();
-  const elevenlabs = doc.inputElevenLabsKey.value.trim();
-  const elevenlabsModel = doc.selectElevenLabsModel.value;
-  
-  AIService.saveKeys(openai, exa, elevenlabs, elevenlabsModel);
-  updateApiStatusIndicator();
-  initVoiceList();
-  closeApiModal();
-}
-
-function updateApiStatusIndicator() {
-  if (AIService.hasKeys()) {
-    doc.apiStatusIndicator.className = 'mode-indicator-box success-banner';
-    doc.apiStatusIndicator.innerHTML = '<i class="fa-solid fa-toggle-on"></i> Running in: <strong>Live Intelligent AI Mode (OpenAI / ElevenLabs)</strong>';
-  } else {
-    doc.apiStatusIndicator.className = 'mode-indicator-box';
-    doc.apiStatusIndicator.innerHTML = '<i class="fa-solid fa-toggle-off"></i> Running in: <strong>Simulation & Demo Mode (High Fidelity)</strong>';
   }
 }
 
@@ -779,13 +788,9 @@ function highlightWordInReader(wordIdx) {
   if (targetSpan) {
     targetSpan.classList.add('highlighted');
     appState.activeWordIdx = wordIdx;
-    
+
     // Automatically center text scrolling if line moves out of focus view
     targetSpan.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    
-    // Log audio repeat telemetry patterns passively if word is spoken again
-    const wordText = targetSpan.getAttribute('data-clean-word');
-    Tracker.logWordDifficulty(wordText, appState.subject, 'audio_repeat');
   }
 }
 
@@ -820,49 +825,29 @@ async function openWordDecoder(wordText, wordIdx) {
   doc.syllablesChunked.innerHTML = `<span><i class="fa-solid fa-spinner fa-spin"></i> Breaking syllables...</span>`;
   doc.phoneticGuide.innerHTML = `<i>Pronouncing...</i>`;
   doc.wordDefinition.innerHTML = `<span style="color:var(--text-muted)">Querying dictionary...</span>`;
-  doc.exaAnalogy.innerHTML = `<span style="color:var(--text-muted)">Generating simple analogy...</span>`;
-  doc.exaCitations.style.display = 'none';
-  doc.exaCitations.innerHTML = '';
+  doc.conceptAnalogy.innerHTML = `<span style="color:var(--text-muted)">Generating simple analogy...</span>`;
 
   try {
     const data = await AIService.decodeWord(wordText, appState.subject);
-    
+
     // Syllables Chips
     doc.syllablesChunked.innerHTML = data.syllables.map(s => `<span>${s}</span>`).join('');
-    
+
     // Phonetics
     doc.phoneticGuide.textContent = data.phonetics;
-    
+
     // Definition
     doc.wordDefinition.textContent = data.definition;
-    
-    // Exa Analogy
-    doc.exaAnalogy.textContent = data.analogy;
-    
-    // Exa Citations
-    if (data.citations && data.citations.length > 0) {
-      doc.exaCitations.style.display = 'block';
-      doc.exaCitations.innerHTML = `
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; font-weight: bold; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 8px;">
-          <i class="fa-solid fa-magnifying-glass" style="margin-right: 4px; color: var(--color-primary);"></i> Sources (via Exa Search):
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          ${data.citations.map(c => `
-            <a href="${c.url}" target="_blank" class="citation-link" style="font-size: 0.8rem; color: var(--color-primary); text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;">
-              <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.65rem;"></i>
-              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">${c.title || c.url}</span>
-            </a>
-          `).join('')}
-        </div>
-      `;
-    }
-    
+
+    // Concept Analogy
+    doc.conceptAnalogy.textContent = data.analogy;
+
     // Telemetry log details
     Tracker.logWordDifficulty(wordText, appState.subject, 'define');
-    Tracker.logWordDifficulty(wordText, appState.subject, 'syllify');
+    Tracker.logWordDifficulty(wordText, appState.subject, 'syllabify');
   } catch (err) {
     doc.wordDefinition.textContent = 'Could not retrieve definition details.';
-    doc.exaAnalogy.textContent = 'Analogy lookup error occurred.';
+    doc.conceptAnalogy.textContent = 'Analogy lookup error occurred.';
   }
 }
 
@@ -893,17 +878,18 @@ async function openTextSimplifier(paraText, paraIdx) {
 function replaceParagraphWithSimplified(paraIdx, newText) {
   const paragraphs = doc.readerContent.querySelectorAll('.reader-para');
   if (paragraphs[paraIdx]) {
-    // Generate new word spans and structures for the simplified text
-    const reParsed = TTS.parseText(newText);
-    
-    // We want to replace the HTML of just this paragraph but keep paragraph boundaries
-    // Extract paragraph inner HTML (without the trailing button)
-    const container = document.createElement('div');
-    container.innerHTML = reParsed.html;
-    const innerContent = container.querySelector('.reader-para').innerHTML;
-    
-    paragraphs[paraIdx].innerHTML = innerContent;
-    
+    // Rebuild the full document text with this paragraph swapped in, then
+    // re-parse it as one unit so word IDs stay globally unique and
+    // appState.parsedData (what Play actually reads) matches the new DOM.
+    const fullText = Array.from(paragraphs).map((p, idx) => {
+      if (idx === paraIdx) return newText;
+      return Array.from(p.querySelectorAll('.word')).map(el => el.textContent).join(' ');
+    }).join('\n\n');
+
+    appState.rawText = fullText;
+    appState.parsedData = TTS.parseText(fullText);
+    doc.readerContent.innerHTML = appState.parsedData.html;
+
     // Reapply bionic mapping if active
     if (doc.toggleBionic.checked) {
       applyBionicFormatting(true);
@@ -917,10 +903,12 @@ function replaceParagraphWithSimplified(paraIdx, newText) {
 }
 
 /* ==================== TEACHER VIEW UPDATES ==================== */
-function refreshTeacherDigest() {
-  const stats = Tracker.getStats();
-  const words = Tracker.getWordDigest();
-  const sentences = Tracker.getSentenceDigest();
+async function refreshTeacherDigest() {
+  const [stats, words, sentences] = await Promise.all([
+    Tracker.getStats(),
+    Tracker.getWordDigest(),
+    Tracker.getSentenceDigest(),
+  ]);
 
   // Populate counters
   doc.statWordsCount.textContent = stats.totalStruggledWords;
@@ -954,12 +942,15 @@ function refreshTeacherDigest() {
       <p class="table-empty">No sentences simplified yet. Areas of reading fatigue will register here.</p>
     `;
   } else {
-    doc.simplifiedSentencesList.innerHTML = sentences.map(s => `
+    doc.simplifiedSentencesList.innerHTML = sentences.map(s => {
+      const time = s.timestamp && s.timestamp.toDate ? s.timestamp.toDate().toLocaleTimeString() : 'just now';
+      return `
       <div class="sentence-digest-item">
         <div class="sentence-digest-original"><strong>Original textbook text:</strong> "${s.original}"</div>
         <div class="sentence-digest-simplified"><strong>AI Simplified text:</strong> "${s.simplified}"</div>
-        <div class="sentence-digest-meta"><i class="fa-solid fa-tag"></i> ${s.subject} &bull; <i class="fa-regular fa-clock"></i> ${new Date(s.timestamp).toLocaleTimeString()}</div>
+        <div class="sentence-digest-meta"><i class="fa-solid fa-tag"></i> ${s.subject} &bull; <i class="fa-regular fa-clock"></i> ${time}</div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 }

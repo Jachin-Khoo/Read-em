@@ -9,9 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "firebase": "^12.15.0",
     "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
+    "firebase-tools": "^13.15.4",
     "vite": "^4.5.2"
+  },
+  "overrides": {
+    "uuid": "^9.0.0"
   }
 }

@@ -37,10 +37,17 @@ Dyslexia affects approximately **10% of Singapore's population**, making it the 
    * Features synchronized word-by-word highlighting and single-word click audio streams.
 4. **Interactive AI Companion:**
    * **Word Decoder:** Provides child-friendly definitions and relatable analogies for complex words.
-   * **Exa Semantic Search:** Dynamically queries search layers to fetch real-world context and clickable educational citations.
    * **Paragraph Simplifier:** Converts dense academic/technical text into plain language instantly (e.g., translating photosynthesis terminology).
 5. **Original PDF Document Layout Toggle:**
    * Retain graphs, figures, and page structures by rendering raw PDF pages onto interactive `<canvas>` elements, or switch back to reflowed bionic reading text on the fly.
+
+---
+
+## 🔑 Access & Authentication (MVP Showcase)
+
+To make showcasing and testing the MVP as seamless as possible:
+* **Student/Reader Access**: You can enter **any random email and password** on the Sign Up/Sign In page to access the reader view instantly. Accounts are mocked locally in the browser's `localStorage` (no backend registration required).
+* **Teacher Dashboard**: Access the classroom telemetry dashboard by entering the PIN `teacher123`.
 
 ---
 
@@ -49,9 +56,8 @@ Dyslexia affects approximately **10% of Singapore's population**, making it the 
 Read'Em utilizes cutting-edge web tools, hosting engines, and AI APIs:
 
 * **Zo Computer:** Sponsoring the hosting infrastructure. Read'Em includes a zero-dependency `server.js` node static server to run on personal cloud networks like Zo Computer.
-* **OpenAI (GPT-4o):** Powers OCR vision text transcription for paper worksheets, and live intelligent paragraph simplifications.
+* **OpenAI (GPT-4o):** Powers OCR vision text transcription for paper worksheets, live intelligent paragraph simplifications, and word/concept analogies.
 * **ElevenLabs:** Powers high-fidelity natural speech synthesis and model selection.
-* **Exa API:** Powers semantic web search, analogies, and educational citation indexing.
 
 ---
 

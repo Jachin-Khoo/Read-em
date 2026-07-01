@@ -28,9 +28,8 @@
       </div>
     </div>
 
-    <!-- Right Controls: Settings Drawer toggle & Logout -->
+    <!-- Right Controls: Logout -->
     <div class="header-actions">
-      <button id="btn-api-settings" class="icon-btn-text"><i class="fa-solid fa-key"></i> API Keys</button>
       <button id="btn-logout" class="icon-btn-text" style="display: none;"><i class="fa-solid fa-right-from-bracket"></i> Exit Workspace</button>
     </div>
   </header>
@@ -49,29 +48,33 @@
           </p>
         </div>
 
-        <div class="landing-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; margin-top: 20px;">
-          <!-- Card 1: Reader -->
-          <div class="portal-card card" id="card-enter-reader" style="cursor: pointer; padding: 30px; text-align: left; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.borderColor='var(--color-primary)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='transparent'; this.style.boxShadow='var(--shadow-md)';">
-            <div class="portal-card-icon" style="font-size: 2.2rem; color: var(--color-primary); margin-bottom: 15px;"><i class="fa-solid fa-book-open-reader"></i></div>
-            <h3 style="font-family: 'Lexend', sans-serif; font-size: 1.3rem; margin-bottom: 10px;">Open Reader</h3>
-            <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; height: 70px;">
-              Upload documents, copy passages, or load curriculum worksheets to read with fully adjustable spacing, bionic helpers, and audio-visual text highlighting.
-            </p>
-            <button class="primary-btn portal-btn" style="width: 100%; cursor: pointer;">Start Reading</button>
+        <div class="auth-card card" style="max-width: 420px; margin: 0 auto; padding: 30px; text-align: left;">
+          <div class="header-tabs" style="margin-bottom: 24px;">
+            <button class="tab-btn active" id="tab-signin" type="button"><i class="fa-solid fa-right-to-bracket"></i> Sign In</button>
+            <button class="tab-btn" id="tab-signup" type="button"><i class="fa-solid fa-user-plus"></i> Sign Up</button>
           </div>
 
-          <!-- Card 2: Teacher Dashboard -->
-          <div class="portal-card card" id="card-enter-teacher" style="padding: 30px; text-align: left; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-md)';">
-            <div class="portal-card-icon" style="font-size: 2.2rem; color: var(--color-primary); margin-bottom: 15px;"><i class="fa-solid fa-chalkboard-user"></i></div>
-            <h3 style="font-family: 'Lexend', sans-serif; font-size: 1.3rem; margin-bottom: 10px;">Teacher Dashboard</h3>
-            <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; height: 50px;">
-              Monitor classroom progress, track struggled vocabulary lists, and download passive telemetry insight reports.
-            </p>
-            <div class="pin-field-wrapper" style="margin-bottom: 15px;">
-              <input type="password" id="teacher-pin" placeholder="Enter Access PIN (teacher123)" style="width: 100%; padding: 10px 12px; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); font-family: inherit; font-size: 0.9rem;">
-            </div>
-            <button class="secondary-btn portal-btn" id="btn-submit-teacher" style="width: 100%; cursor: pointer;">Enter Dashboard</button>
+          <div id="auth-role-field" class="control-group" style="display: none; margin-bottom: 16px;">
+            <label for="auth-role-select">I am a...</label>
+            <select id="auth-role-select">
+              <option value="student" selected>Student / Reader</option>
+              <option value="teacher">Teacher</option>
+            </select>
           </div>
+
+          <div class="control-group" style="margin-bottom: 16px;">
+            <label for="auth-email">Email</label>
+            <input type="email" id="auth-email" placeholder="you@example.com" style="width: 100%; padding: 10px 12px; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); font-family: inherit; font-size: 0.9rem;">
+          </div>
+
+          <div class="control-group" style="margin-bottom: 8px;">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••" style="width: 100%; padding: 10px 12px; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); font-family: inherit; font-size: 0.9rem;">
+          </div>
+
+          <p id="auth-error" style="display: none; color: var(--danger-color); font-size: 0.85rem; margin: 8px 0 0;"></p>
+
+          <button class="primary-btn portal-btn" id="btn-auth-submit" style="width: 100%; cursor: pointer; margin-top: 16px;">Sign In</button>
         </div>
       </div>
     </section>
@@ -265,7 +268,7 @@
       <aside class="sidebar-ai card">
         <div class="ai-section-header">
           <h2><i class="fa-solid fa-brain"></i> AI Companion</h2>
-          <span class="provider-pill">OpenAI + Exa</span>
+          <span class="provider-pill">OpenAI</span>
         </div>
 
         <!-- Section 1: Dynamic Dictionary (Activated on Word Clicks) -->
@@ -303,11 +306,10 @@
               <p id="word-definition">How green plants use sunlight to make food from water and carbon dioxide.</p>
             </div>
 
-            <!-- Exa Concept Finder -->
-            <div class="exa-display">
-              <label>Concept Analogy (via Exa)</label>
-              <p id="exa-analogy">Think of it like baking a cake, where the sun is the oven, water and air are the flour and sugar, and the plant is the chef.</p>
-              <div id="exa-citations" style="margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;"></div>
+            <!-- Concept Analogy -->
+            <div class="concept-display">
+              <label>Concept Analogy</label>
+              <p id="concept-analogy">Think of it like baking a cake, where the sun is the oven, water and air are the flour and sugar, and the plant is the chef.</p>
             </div>
           </div>
         </div>
@@ -417,53 +419,6 @@
     </section>
 
   </main>
-
-  <!-- ==================== DRAWER/MODAL: API KEYS CONFIGURATION ==================== -->
-  <div id="modal-api-settings" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2><i class="fa-solid fa-gear"></i> Developer API Settings</h2>
-        <button id="btn-close-modal" class="close-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="settings-hint">
-          Provide your keys to run OpenAI-powered sentence simplification, syllable chunking, and Exa analogies live. 
-          If empty, the app runs in <strong>High-Fidelity Simulation Mode</strong>, enabling fully operational tests with demo materials.
-        </p>
-        
-        <div class="input-field">
-          <label for="input-openai-key">OpenAI API Key</label>
-          <input type="password" id="input-openai-key" placeholder="sk-proj-...">
-        </div>
-
-        <div class="input-field">
-          <label for="input-exa-key">Exa API Key</label>
-          <input type="password" id="input-exa-key" placeholder="exa-...">
-        </div>
-
-        <div class="input-field">
-          <label for="input-elevenlabs-key">ElevenLabs API Key</label>
-          <input type="password" id="input-elevenlabs-key" placeholder="eleven-... or key">
-        </div>
-
-        <div class="input-field">
-          <label for="select-elevenlabs-model">ElevenLabs Model</label>
-          <select id="select-elevenlabs-model" style="width:100%; padding:8px 12px; border-radius:var(--border-radius-sm); border:1px solid var(--border-color); background-color:var(--bg-card); color:var(--text-main); font-family:inherit;">
-            <option value="eleven_turbo_v2_5" selected>Eleven Turbo v2.5 (Fastest / Recommended)</option>
-            <option value="eleven_multilingual_v2">Eleven Multilingual v2 (Rich / Accurate)</option>
-            <option value="eleven_monolingual_v1">Eleven Monolingual v1 (Classic)</option>
-          </select>
-        </div>
-
-        <div class="mode-indicator-box" id="api-status-indicator">
-          <i class="fa-solid fa-toggle-off"></i> Running in: <strong>Simulation & Demo Mode</strong>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-save-keys" class="primary-btn">Save API Configuration</button>
-      </div>
-    </div>
-  </div>
 
   <!-- PDF.js Global Script dependencies -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
