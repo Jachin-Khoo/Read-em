@@ -3,7 +3,7 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#)
-[![Host Platform](https://img.shields.io/badge/hosted--on-Zo_Computer-purple.svg)](#)
+[![AI Powered](https://img.shields.io/badge/made--with-Google_Antigravity-orange.svg)](#)
 
 ---
 
@@ -51,12 +51,12 @@ To make showcasing and testing the MVP as seamless as possible:
 
 ---
 
-## 📡 Sponsors & Technology Integrations
+## 📡 Technology Integrations & Infrastructure
 
-Read'Em utilizes cutting-edge web tools, hosting engines, and AI APIs:
+Read'Em is made with the help of **Google Antigravity** (AI Coding Companion) and utilizes modern web integrations:
 
-* **Zo Computer:** Sponsoring the hosting infrastructure. Read'Em includes a zero-dependency `server.js` node static server to run on personal cloud networks like Zo Computer.
 * **OpenAI (GPT-4o):** Powers OCR vision text transcription for paper worksheets, live intelligent paragraph simplifications, and word/concept analogies.
+* **Google Firebase**: Used as the hosting infrastructure for deploying the web application.
 * **ElevenLabs:** Powers high-fidelity natural speech synthesis and model selection.
 
 ---
@@ -83,17 +83,15 @@ Read'Em utilizes cutting-edge web tools, hosting engines, and AI APIs:
    ```
    Open the printed URL (typically `http://localhost:5173`) in your browser.
 
-### Hosting on Zo Computer (Static Production Build)
-1. **Compile the production assets:**
+### Hosting on Google Firebase Hosting
+1. **Build the Production Assets:**
    ```bash
    npm run build
    ```
-   This generates all compiled pages and media in the `/dist` folder.
-2. **Launch the zero-dependency hosting server:**
+2. **Deploy to Firebase Hosting:**
    ```bash
-   node server.js
+   npx firebase deploy --only hosting
    ```
-   The application will host the production files locally, serving as a self-contained node server ideal for private clouds.
 
 ---
 
