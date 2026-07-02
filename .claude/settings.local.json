@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item *)",
+      "PowerShell(Move-Item *)",
+      "Bash(npx vite *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const js=fs.readFileSync\\('dist/assets/index-BH70VXN1.js','utf8'\\); ['sparklineSvg','endReadingSession','checkFirstLogin','renderStudentProgress','updateAIStatusBadge'].forEach\\(fn => console.log\\(fn, js.includes\\(fn\\) ? 'YES' : 'MISSING'\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const js=fs.readFileSync\\('dist/assets/index-BH70VXN1.js','utf8'\\); ['readem_demo_loaded','Words Decoded','Decode rate this session','session-summary-modal','comprehension-done-btn','student-progress-item','ai-status-badge','AI Active','readem_reading_progress'].forEach\\(s => console.log\\(s, js.includes\\(s\\) ? 'YES' : 'MISSING'\\)\\)\")",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)"
+    ]
+  }
+}
