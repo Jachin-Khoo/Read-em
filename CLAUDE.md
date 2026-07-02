@@ -98,7 +98,7 @@ There is no lint, typecheck, or test script in `package.json`, and no test suite
 The orchestrator. Owns `appState`, a single `doc` object of `getElementById` lookups for all DOM elements, view-switching logic (landing portal / reader workspace / teacher workspace), event wiring, phonics overlay rendering, and hardcoded demo curriculum passages (`DEMO_MATERIALS`).
 
 ### `src/services/ai-service.js` (~675 lines)
-Exports the `AIService` singleton. Methods: `simplifyParagraph`, `decodeWord`, `getOpenAIAnalogy`, `transcribeImage` (OCR), `extractVocabWords`, `generateComprehensionQuestions`, `transcribeAudio` (Huawei SIS), `extractHardWords`, `translateWord` (Huawei MT).
+Exports the `AIService` singleton. Methods: `simplifyParagraph`, `decodeWord`, `getOpenAIAnalogy`, `transcribeImage` (OCR), `extractVocabWords`, `generateComprehensionQuestions`, `transcribeAudio` (Huawei SIS), `extractHardWords` (NER→keywords→heuristic), `translateWord` (Huawei MT), `synthesizeSpeech` (Huawei TTS), `detectSubject` (NLP keywords + signal table).
 
 **Call priority for every feature:**
 1. Huawei Cloud proxy (when `VITE_HUAWEI_ENDPOINT` + `VITE_HUAWEI_API_KEY` are set)
@@ -112,6 +112,11 @@ The offline fallback is **the default real-world experience** for most users who
 - `synthesizeSpeech` — Huawei SIS TTS (returns `null` when Huawei not configured; TTS falls back to Web Speech)
 - `translateWord` — Huawei MT mother-tongue bridge (returns `null` when Huawei not configured)
 - `detectSubject` — subject classification using Huawei NLP keywords; falls back to built-in signal table
+
+**`main.js` functions that call AI:**
+- `generatePassageSummary(text)` — calls `AIService.simplifyParagraph` on the first 1200 chars to get a 1-2 sentence plain English preview; shown at the top of the vocab pre-teaching modal before reading begins
+- `colorParagraphsByDifficulty()` — client-side only, no API; assigns `para-diff-easy/medium/hard` CSS classes to each `.reader-para` based on word length ratio and average sentence length; runs after `loadTextIntoReader`
+- `renderTeacherInsights(stats, words, sentences)` — template-based natural language summary generated from telemetry data; no API call; populates the "AI Teaching Insights" card on the teacher dashboard
 
 ### `server.js`
 A plain Node `http` server with two responsibilities:

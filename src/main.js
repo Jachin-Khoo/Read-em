@@ -202,6 +202,7 @@ const doc = {
   sessionSummaryBody: document.getElementById('session-summary-body'),
   sessionSummaryCloseBtn: document.getElementById('session-summary-close-btn'),
   // Teacher dashboard
+  aiInsightsBody: document.getElementById('ai-insights-body'),
   statWordsCount: document.getElementById('stat-words-count'),
   statSimplifications: document.getElementById('stat-simplifications'),
   statAvgSpeed: document.getElementById('stat-avg-speed'),
@@ -918,14 +919,27 @@ async function beginReadingSession(text) {
   saveSessionToHistory(text, appState.subject);
   appState.pendingPreteachText = text;
   doc.vocabModal.style.display = 'flex';
-  doc.vocabWordList.innerHTML = '<div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Identifying key vocabulary...</div>';
+  doc.vocabWordList.innerHTML = '<div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Preparing your reading...</div>';
 
-  try {
-    const vocabWords = await AIService.extractVocabWords(text, appState.subject, 6);
-    if (vocabWords.length === 0) {
-      doc.vocabWordList.innerHTML = '<div class="vocab-empty">No complex vocabulary found — this passage uses everyday language. You are ready to read!</div>';
-    } else {
-      doc.vocabWordList.innerHTML = vocabWords.map(v => `
+  // Run passage summary and vocab extraction in parallel
+  const [summaryResult, vocabResult] = await Promise.allSettled([
+    generatePassageSummary(text),
+    AIService.extractVocabWords(text, appState.subject, 6),
+  ]);
+
+  const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
+  const vocabWords = vocabResult.status === 'fulfilled' ? vocabResult.value : [];
+
+  const summaryHTML = summary
+    ? `<div class="passage-summary-box">
+        <label><i class="fa-solid fa-book-open"></i> What this passage is about</label>
+        <p class="passage-summary-text">${summary}</p>
+       </div>`
+    : '';
+
+  const vocabHTML = vocabWords.length === 0
+    ? '<div class="vocab-empty">No complex vocabulary found — this passage uses everyday language.</div>'
+    : vocabWords.map(v => `
         <div class="vocab-word-item">
           <div class="vocab-word-heading"><h4>${v.word}</h4></div>
           <div class="vocab-syllable-chips">${(v.syllables || []).map(s => `<span>${s}</span>`).join('')}</div>
@@ -933,9 +947,24 @@ async function beginReadingSession(text) {
           <div class="vocab-definition">${v.definition || ''}</div>
         </div>
       `).join('');
-    }
+
+  const vocabSectionLabel = vocabWords.length > 0
+    ? '<div class="vocab-section-label"><i class="fa-solid fa-spell-check"></i> Key words to know before reading</div>'
+    : '';
+
+  doc.vocabWordList.innerHTML = summaryHTML + vocabSectionLabel + vocabHTML;
+}
+
+async function generatePassageSummary(text) {
+  try {
+    const simplified = await AIService.simplifyParagraph(text.slice(0, 1200), appState.subject);
+    const sentences = simplified.match(/[^.!?]+[.!?]+/g) || [];
+    const twoSentences = sentences.slice(0, 2).join(' ').trim();
+    return twoSentences || simplified.slice(0, 200).trim();
   } catch (e) {
-    doc.vocabWordList.innerHTML = '<div class="vocab-empty">Could not load vocabulary preview. Click Start Reading to continue.</div>';
+    // Offline: return first sentence of original text
+    const first = (text.match(/[^.!?]+[.!?]+/) || [])[0];
+    return first ? first.trim() : null;
   }
 }
 
@@ -985,6 +1014,7 @@ function loadTextIntoReader(text) {
 
   // Non-blocking: pre-flag hard words using Huawei NLP after render
   preflightHardWords(text);
+  colorParagraphsByDifficulty();
 }
 
 /* ==================== PHONICS / OVERLAY RENDERING ==================== */
@@ -1614,6 +1644,21 @@ function clearFluencyMarks() {
 }
 
 /* ==================== HARD WORD PRE-FLAGGING (Huawei NLP Keywords) ==================== */
+function colorParagraphsByDifficulty() {
+  doc.readerContent.querySelectorAll('.reader-para').forEach(para => {
+    const words = para.textContent.trim().split(/\s+/).filter(w => /[a-z]/i.test(w));
+    if (words.length < 4) return;
+    const hardRatio = words.filter(w => w.replace(/[^a-z]/gi, '').length >= 7).length / words.length;
+    const sentences = para.textContent.match(/[^.!?]+[.!?]+/g) || [para.textContent];
+    const avgSentLen = words.length / sentences.length;
+    const score = hardRatio * 60 + avgSentLen * 0.8;
+    para.classList.remove('para-diff-easy', 'para-diff-medium', 'para-diff-hard');
+    if (score > 14) para.classList.add('para-diff-hard');
+    else if (score > 7) para.classList.add('para-diff-medium');
+    else para.classList.add('para-diff-easy');
+  });
+}
+
 async function preflightHardWords(text) {
   try {
     const hardWords = await AIService.extractHardWords(text, appState.subject);
@@ -2097,4 +2142,59 @@ async function refreshTeacherDigest() {
   }
 
   renderStudentProgress();
+  renderTeacherInsights(stats, words, sentences);
+}
+
+function renderTeacherInsights(stats, words, sentences) {
+  if (!doc.aiInsightsBody) return;
+
+  if (stats.totalSessions === 0) {
+    doc.aiInsightsBody.innerHTML = '<p class="table-empty">No reading sessions yet. Insights will appear here once students start using Read\'Em.</p>';
+    return;
+  }
+
+  const points = [];
+
+  // Subject breakdown
+  const subjectTotals = {};
+  words.forEach(w => { subjectTotals[w.subject] = (subjectTotals[w.subject] || 0) + w.weight; });
+  const topSubject = Object.entries(subjectTotals).sort((a, b) => b[1] - a[1])[0];
+  if (topSubject) {
+    points.push(`Students are spending the most decoding effort on <strong>${topSubject[0]}</strong> vocabulary.`);
+  }
+
+  // Hard words callout
+  const hardWords = words.filter(w => w.difficulty === 'high').slice(0, 3);
+  if (hardWords.length > 0) {
+    const list = hardWords.map(w => `"${w.word}"`).join(', ');
+    points.push(`Highest-difficulty words this week: ${list}. Pre-teaching these before your next lesson may reduce decode interruptions.`);
+  }
+
+  // Simplification frequency
+  const simpRate = stats.totalSessions > 0
+    ? (stats.totalSimplifications / stats.totalSessions).toFixed(1)
+    : 0;
+  if (parseFloat(simpRate) >= 1) {
+    points.push(`Students are requesting paragraph simplification <strong>${simpRate}× per session</strong> on average — the source texts may be above their comfortable reading level.`);
+  } else if (stats.totalSimplifications > 0) {
+    points.push(`Paragraph simplification has been used <strong>${stats.totalSimplifications} time${stats.totalSimplifications !== 1 ? 's' : ''}</strong> across ${stats.totalSessions} session${stats.totalSessions !== 1 ? 's' : ''} — occasional support, not a persistent barrier.`);
+  }
+
+  // Sentence subject spread
+  if (sentences.length > 0) {
+    const subjectsNeedingHelp = [...new Set(sentences.map(s => s.subject))];
+    points.push(`Passages from <strong>${subjectsNeedingHelp.join(', ')}</strong> generated the most simplification requests.`);
+  }
+
+  // Decode rate guidance
+  const decodeNum = parseInt(stats.avgDecodeRate);
+  if (decodeNum >= 25) {
+    points.push(`Average decode rate is <strong>${stats.avgDecodeRate}</strong> — students are actively using the word decoder. Consider reviewing flagged words as a class.`);
+  } else if (decodeNum > 0 && decodeNum < 10) {
+    points.push(`Average decode rate is <strong>${stats.avgDecodeRate}</strong> — students may not be aware of the word decoder, or the current passages are at a comfortable level.`);
+  }
+
+  doc.aiInsightsBody.innerHTML = points.length > 0
+    ? `<div class="insights-list">${points.map(p => `<div class="insight-item"><i class="fa-solid fa-circle-dot" style="color:var(--color-primary);margin-right:8px;font-size:0.7rem;"></i>${p}</div>`).join('')}</div>`
+    : '<p class="table-empty">Keep collecting data — insights appear after a few sessions.</p>';
 }

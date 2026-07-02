@@ -31,6 +31,10 @@ Read'Em is a single, unified reading workspace. Upload any text — typed, PDF, 
 | **Input** | Typed text, PDF upload, image/photo OCR via Huawei Cloud Vision or OpenAI GPT-4o |
 | **Teacher Visibility** | Dashboard showing class-wide struggled vocabulary, sentences requiring simplification, reading speed trends, and decode rates |
 | **Fluency Assessment** | Read Aloud Check — student reads the passage aloud, Huawei SIS transcribes and scores word-level accuracy |
+| **Passage summary** | Huawei NLP summarises the passage in 1-2 plain sentences before reading begins, so students know what to expect |
+| **Paragraph difficulty map** | Green / amber / red left border on each paragraph shows reading difficulty at a glance |
+| **AI teaching insights** | Teacher dashboard generates natural language guidance from telemetry ("Students are struggling most with Science vocabulary...") |
+| **Image upload** | Students can photograph a worksheet and upload the image — OCR via Huawei Cloud Vision or OpenAI GPT-4o |
 
 All features include a full **offline simulation mode**: the app is fully usable without any API keys, which is the realistic experience for most students in schools.
 
@@ -49,6 +53,7 @@ Huawei Cloud is the primary AI backend for school deployments. All calls route t
 | **Huawei SIS TTS** | Neural read-aloud voices: English (Rose ♀, William ♂) and Mandarin Chinese (普通话 ♀ ♂) |
 | **Huawei Machine Translation** | Word definitions in 中文, Melayu, தமிழ் — mother-tongue bridge so families can read together |
 | **Auto subject detection** | Classifies pasted text into Science / Mathematics / History / Literature using Huawei NLP keywords |
+| **Passage summary** | Huawei NLP text summarisation at passage level — 1-2 sentence plain English preview before reading begins |
 
 When Huawei Cloud is configured, it takes priority over OpenAI for every feature. OpenAI GPT-4o serves as a fallback when running without a deployed proxy.
 
