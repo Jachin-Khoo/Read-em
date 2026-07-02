@@ -125,19 +125,27 @@ export const TTS = {
    */
   getHuaweiVoices() {
     if (!AIService.isUsingHuawei()) return [];
+    // Huawei SIS TTS natively supports English and Mandarin Chinese.
+    // Malay and Tamil TTS are served by the device's Web Speech API (see getAvailableVoices).
     return [
-      { name: 'Huawei: Rose (English, Female)', value: 'huawei|english_rose_16k', lang: 'en' },
-      { name: 'Huawei: William (English, Male)', value: 'huawei|english_william_16k', lang: 'en' },
-      { name: 'Huawei: Huaxiaomei (中文, Female)', value: 'huawei|chinese_huaxiaomei_16k', lang: 'zh' },
+      { name: 'Huawei: Rose (English, Female)',      value: 'huawei|english_rose_16k',         lang: 'en' },
+      { name: 'Huawei: William (English, Male)',      value: 'huawei|english_william_16k',       lang: 'en' },
+      { name: 'Huawei: Huaxiaomei (普通话, Female)', value: 'huawei|chinese_huaxiaomei_16k',    lang: 'zh' },
+      { name: 'Huawei: Huaxiaogang (普通话, Male)',  value: 'huawei|chinese_huaxiaogang_16k',   lang: 'zh' },
     ];
   },
 
   /**
-   * Fetch all native synthesized voices available
+   * Fetch all native synthesized voices for Singapore's four official languages.
+   * English and Mandarin are also available via Huawei TTS (see getHuaweiVoices).
+   * Malay (ms-MY) and Tamil (ta-IN) TTS come exclusively from the device's Web Speech API.
    */
   getAvailableVoices() {
     if (!window.speechSynthesis) return [];
-    return window.speechSynthesis.getVoices().filter(voice => voice.lang.includes('en'));
+    const SG_LANGS = ['en', 'zh', 'ms', 'ta'];
+    return window.speechSynthesis.getVoices().filter(voice =>
+      SG_LANGS.some(lang => voice.lang.toLowerCase().startsWith(lang))
+    );
   },
 
   /**

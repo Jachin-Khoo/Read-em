@@ -44,11 +44,24 @@ Huawei Cloud is the primary AI backend for school deployments. All calls route t
 |---|---|
 | **Huawei OCR** (General Text Recognition) | Worksheet photo to clean readable text |
 | **Huawei NLP** (Text Summarization) | Paragraph simplification for dense academic text |
-| **Huawei NLP** (Keyword Extraction) | Identifies complex vocabulary for pre-teaching before reading begins |
-| **Huawei SIS** (Speech Intelligence Service) | Oral reading fluency scoring — captures student's read-aloud audio, transcribes, compares to source passage |
-| **Huawei Machine Translation** | Word definitions in Chinese, Malay, Tamil — mother-tongue bridge for Singapore families |
+| **Huawei NLP** (Keyword Extraction + NER) | Named Entity Recognition flags domain-specific terms for vocabulary pre-teaching; keyword extraction as fallback |
+| **Huawei SIS ASR** (Speech Intelligence) | Oral reading fluency scoring — student reads aloud, AI transcribes and scores word accuracy |
+| **Huawei SIS TTS** | Neural read-aloud voices: English (Rose ♀, William ♂) and Mandarin Chinese (普通话 ♀ ♂) |
+| **Huawei Machine Translation** | Word definitions in 中文, Melayu, தமிழ் — mother-tongue bridge so families can read together |
+| **Auto subject detection** | Classifies pasted text into Science / Mathematics / History / Literature using Huawei NLP keywords |
 
 When Huawei Cloud is configured, it takes priority over OpenAI for every feature. OpenAI GPT-4o serves as a fallback when running without a deployed proxy.
+
+### Multilingual TTS coverage across Singapore's four official languages
+
+| Language | Provider | Notes |
+|---|---|---|
+| English | Huawei SIS TTS + device Web Speech | Huawei voices are neural-quality; device voices are fallback |
+| 普通话 (Mandarin) | Huawei SIS TTS + device Web Speech | Huawei voices: Huaxiaomei (F), Huaxiaogang (M) |
+| Melayu (Malay) | Device Web Speech API (ms-MY) | Available on most Android, iOS, and Windows devices |
+| தமிழ் (Tamil) | Device Web Speech API (ta-IN) | Available on most Android, iOS, and Windows devices |
+
+Huawei SIS TTS does not natively support Malay or Tamil — these are served by the device's built-in speech engine, which covers both languages on all major platforms. All four language voices appear in the voice selector automatically.
 
 ---
 

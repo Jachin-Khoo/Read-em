@@ -108,20 +108,37 @@ Exports the `AIService` singleton. Methods: `simplifyParagraph`, `decodeWord`, `
 The offline fallback is **the default real-world experience** for most users who won't have API keys. Treat it as a first-class path. Never remove or degrade it.
 
 **Huawei-only features** (no OpenAI fallback, only offline mode):
-- `transcribeAudio` — Huawei SIS oral reading assessment
+- `transcribeAudio` — Huawei SIS ASR oral reading assessment
+- `synthesizeSpeech` — Huawei SIS TTS (returns `null` when Huawei not configured; TTS falls back to Web Speech)
 - `translateWord` — Huawei MT mother-tongue bridge (returns `null` when Huawei not configured)
+- `detectSubject` — subject classification using Huawei NLP keywords; falls back to built-in signal table
 
 ### `server.js`
 A plain Node `http` server with two responsibilities:
 1. **Static serving** — serves `dist/` with SPA fallback to `index.html`
-2. **Huawei Cloud proxy** — five routes under `/api/huawei/`:
+2. **Huawei Cloud proxy** — seven routes under `/api/huawei/`:
    - `POST /api/huawei/ocr` — General Text Recognition (worksheet photos)
    - `POST /api/huawei/nlp/simplify` — NLP text summarization (paragraph simplification)
    - `POST /api/huawei/asr` — SIS short-audio ASR (oral reading fluency)
-   - `POST /api/huawei/nlp/keywords` — NLP keyword extraction (vocabulary pre-teaching)
+   - `POST /api/huawei/nlp/keywords` — NLP keyword extraction (vocabulary pre-teaching fallback)
    - `POST /api/huawei/nlp/translate` — Machine Translation EN→zh/ms/ta
+   - `POST /api/huawei/tts` — SIS Text-to-Speech → base64 MP3 (English + Mandarin neural voices)
+   - `POST /api/huawei/nlp/ner` — Named Entity Recognition for domain term detection
 
 All proxy routes require the `X-API-Key` header matching `SERVER_API_KEY`. Huawei requests are signed with HMAC-SHA256 using AK/SK from environment variables — credentials never leave the server.
+
+### `src/services/tts.js`
+Exports the `TTS` singleton. Voice engine priority: **Huawei SIS TTS** → **ElevenLabs** → **Browser Web Speech API**.
+
+**Multilingual TTS — Singapore's four official languages:**
+| Language | Engine | Notes |
+|---|---|---|
+| English | Huawei SIS TTS (Rose ♀, William ♂) → Web Speech | Neural quality when proxy is live |
+| 普通话 Mandarin | Huawei SIS TTS (Huaxiaomei ♀, Huaxiaogang ♂) → Web Speech | Neural quality when proxy is live |
+| Melayu Malay | Device Web Speech API (`ms-MY`) only | Huawei SIS does not support Malay TTS |
+| தமிழ் Tamil | Device Web Speech API (`ta-IN`) only | Huawei SIS does not support Tamil TTS |
+
+`getAvailableVoices()` filters Web Speech voices for language codes `en`, `zh`, `ms`, `ta` so all four appear in the voice selector. ElevenLabs word-highlight sync is **time-based approximation** (audio progress mapped linearly to character positions), not real boundary events.
 
 ### `src/store/auth.js`
 **Mock auth, not Firebase Auth.** Signing in with an unregistered email auto-creates an account (any password accepted on first use); returning users must match their stored password. Role (`student`/`teacher`) is chosen at sign-up. Accounts and sessions persist in `localStorage` (`readem_mock_users`, `readem_current_user`).
