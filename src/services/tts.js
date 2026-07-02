@@ -179,12 +179,20 @@ export const TTS = {
       return;
     }
 
+    // Determine where to start — resume from a specific word if requested
+    const startWordIdx = options.startFromWordIdx || 0;
+    const startRange = parsedData.ranges.find(r => r.index === startWordIdx);
+    const charOffset = startRange ? startRange.start : 0;
+    const slicedText = charOffset > 0
+      ? parsedData.utteranceText.slice(charOffset)
+      : parsedData.utteranceText;
+
     wordRanges = parsedData.ranges;
     onWordHighlightCallback = onHighlight;
     onSpeechEndCallback = onEnd;
-    currentWordIndex = -1;
+    currentWordIndex = startWordIdx - 1;
 
-    activeUtterance = new SpeechSynthesisUtterance(parsedData.utteranceText);
+    activeUtterance = new SpeechSynthesisUtterance(slicedText);
     
     // Apply voice options
     if (options.voiceName) {
@@ -199,11 +207,16 @@ export const TTS = {
 
     // Track speech boundary changes to trigger highlights
     activeUtterance.onboundary = (event) => {
-      // Filter out non-word boundaries (like sentence divisions)
+      // Sentence boundary — optional callback for auto-pause between sentences
+      if (event.name === 'sentence' && options.onSentenceBoundary) {
+        options.onSentenceBoundary();
+      }
+
       if (event.name !== 'word') return;
 
-      const charIdx = event.charIndex;
-      
+      // charIndex is relative to the sliced utterance; add offset to match original ranges
+      const charIdx = event.charIndex + charOffset;
+
       // Locate corresponding word span by checking range overlaps
       const match = wordRanges.find(r => charIdx >= r.start && charIdx <= r.end);
       if (match && match.index !== currentWordIndex) {

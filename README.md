@@ -1,99 +1,133 @@
-# Read'Em 📖✨
-### Integrated AI Dyslexia Reading Companion
+# Read'Em
+### AI-Enabled Reading Companion for Dyslexic Learners
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](#)
-[![AI Powered](https://img.shields.io/badge/made--with-Google_Antigravity-orange.svg)](#)
+[![Live Demo](https://img.shields.io/badge/live-read--em--215cc.web.app-brightgreen)](https://read-em-215cc.web.app/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](#license)
+[![Huawei Cloud](https://img.shields.io/badge/powered_by-Huawei_Cloud-red)](#huawei-cloud-integration)
 
----
-
-## 🇸🇬 The Context: Why We Built Read'Em
-
-Dyslexia affects approximately **10% of Singapore's population**, making it the most common learning difference in the country. Yet, support remains heavily gatekept—restricted to formal diagnoses, institutional programs, and early school-based interventions that individuals either age out of or never access. 
-
-### Gaps in Current Systems
-* **Early Expiry of Support:** For students, programs like the *School-based Dyslexia Remediation (SDR)* only cover Primary 3 and Primary 4. Access arrangements (extra time, reader assistance) are limited to national exams. Beyond this, students are expected to independently decode dense worksheets, textbooks, and exam papers across all subjects.
-* **Adult & Lifelong Challenges:** Dyslexia does not vanish with age. Many working professionals and lifelong learners struggle with workplace documentation, emails, and literature, often hiding their difficulties due to lack of diagnostic access or societal stigma.
-* **Fragmented Tools:** Existing solutions (general TTS apps, font extensions, generic speed readers) are highly fragmented, require costly multiple subscriptions, and are built as generic accessibility aids rather than cohesive dyslexia companions. None actually simplify or decode content to aid cognitive comprehension.
-
-> **Problem Statement:** How might we empower dyslexic individuals to independently access and understand any text—across subjects, contexts, and stages of life—through an experience that is fully adaptable to their unique needs?
+> Built for **Tech4City 2026** — AI For Education track.
+> Targeting dyslexic students and adults in Singapore who lose school-based support after Primary 4, and working adults who have never had any support at all.
 
 ---
 
-## 🛠 What We Created
+## The Problem
 
-**Read'Em** is a comprehensive reading dashboard that bridges the gap between text visibility and actual cognitive comprehension. It is fully responsive, customizable, and runs both online (integrated with advanced AI APIs) and offline (simulation mode).
+Dyslexia affects roughly **10% of Singapore's population**. School-based remediation (SDR) ends after Primary 4 — yet students must continue reading dense worksheets, textbooks, and exam papers across every subject for the next decade. Working adults face the same struggle with workplace documents and emails, entirely alone.
 
-### Key Features
-1. **Unified Entrance Portal:**
-   * **Reader Interface:** A clean workspace tailored for kids and adults to read documents without administrative distraction.
-   * **Teacher Dashboard:** Protected dashboard (using PIN `teacher123`) to track classroom reading logs, review struggled vocabulary, and download literacy digest telemetry.
-2. **Dynamic Bionic Typography Control:**
-   * **Adaptable Spacing:** Real-time sliders for Font Size, Line Height, Letter Spacing, and Word Spacing.
-   * **Dyslexia-Optimized Fonts:** Support for **OpenDyslexic** (sourced via CDNfonts) and **Lexend** (designed specifically for readability).
-   * **Visual Helpers:** Adjustable reading rulers and visual syllable chunking.
-3. **Multi-Modal Text-to-Speech (TTS):**
-   * Powered by **ElevenLabs** neural voices for natural, non-robotic reading support.
-   * Features synchronized word-by-word highlighting and single-word click audio streams.
-4. **Interactive AI Companion:**
-   * **Word Decoder:** Provides child-friendly definitions and relatable analogies for complex words.
-   * **Paragraph Simplifier:** Converts dense academic/technical text into plain language instantly (e.g., translating photosynthesis terminology).
-5. **Original PDF Document Layout Toggle:**
-   * Retain graphs, figures, and page structures by rendering raw PDF pages onto interactive `<canvas>` elements, or switch back to reflowed bionic reading text on the fly.
+Existing tools are fragmented: a TTS app here, a font extension there. None combine visibility, decoding, and comprehension into one cohesive, zero-setup experience.
 
 ---
 
-## 🔑 Access & Authentication (MVP Showcase)
+## What Read'Em Does
 
-To make showcasing and testing the MVP as seamless as possible:
-* **Student/Reader Access**: You can enter **any random email and password** on the Sign Up/Sign In page to access the reader view instantly. Accounts are mocked locally in the browser's `localStorage` (no backend registration required).
-* **Teacher Dashboard**: Access the classroom telemetry dashboard by entering the PIN `teacher123`.
+Read'Em is a single, unified reading workspace. Upload any text — typed, PDF, or a photo of a worksheet — and it adapts the entire reading experience to the user's needs.
 
----
+| Layer | What it does |
+|---|---|
+| **Visibility** | Dyslexia-optimised fonts (OpenDyslexic, Lexend), font/spacing sliders, colour overlays, reading ruler, line focus, bionic reading, morpheme colours, phonics overlays |
+| **Decoding** | Click any word — syllables, phonetics, simple definition, analogy, mother-tongue translation (EN / Chinese / Malay / Tamil) |
+| **Comprehension** | AI paragraph simplification that preserves subject-specific terminology while rewriting dense sentence structures |
+| **Listening** | Multi-voice TTS with word-by-word highlight sync; ElevenLabs neural voices; Web Speech API fallback |
+| **Input** | Typed text, PDF upload, image/photo OCR via Huawei Cloud Vision or OpenAI GPT-4o |
+| **Teacher Visibility** | Dashboard showing class-wide struggled vocabulary, sentences requiring simplification, reading speed trends, and decode rates |
+| **Fluency Assessment** | Read Aloud Check — student reads the passage aloud, Huawei SIS transcribes and scores word-level accuracy |
 
-## 📡 Technology Integrations & Infrastructure
-
-Read'Em is made with the help of **Google Antigravity** (AI Coding Companion) and utilizes modern web integrations:
-
-* **OpenAI (GPT-4o):** Powers OCR vision text transcription for paper worksheets, live intelligent paragraph simplifications, and word/concept analogies.
-* **Google Firebase**: Used as the hosting infrastructure for deploying the web application.
-* **ElevenLabs:** Powers high-fidelity natural speech synthesis and model selection.
-
----
-
-## 🚀 Installation & Setup Guide
-
-### Prerequisites
-* [Node.js](https://nodejs.org/) (v16.0.0 or higher recommended)
-* [npm](https://www.npmjs.com/) (usually bundles with Node)
-
-### Local Setup
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/your-username/readem.git
-   cd readem
-   ```
-2. **Install Dependencies:**
-   ```bash
-   npm install
-   ```
-3. **Run Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Open the printed URL (typically `http://localhost:5173`) in your browser.
-
-### Hosting on Google Firebase Hosting
-1. **Build the Production Assets:**
-   ```bash
-   npm run build
-   ```
-2. **Deploy to Firebase Hosting:**
-   ```bash
-   npx firebase deploy --only hosting
-   ```
+All features include a full **offline simulation mode**: the app is fully usable without any API keys, which is the realistic experience for most students in schools.
 
 ---
 
-## 🛡 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Huawei Cloud Integration
+
+Huawei Cloud is the primary AI backend for school deployments. All calls route through `server.js`, a Node.js proxy that handles HMAC-SHA256 signing — credentials never reach the browser.
+
+| Service | Feature in Read'Em |
+|---|---|
+| **Huawei OCR** (General Text Recognition) | Worksheet photo to clean readable text |
+| **Huawei NLP** (Text Summarization) | Paragraph simplification for dense academic text |
+| **Huawei NLP** (Keyword Extraction) | Identifies complex vocabulary for pre-teaching before reading begins |
+| **Huawei SIS** (Speech Intelligence Service) | Oral reading fluency scoring — captures student's read-aloud audio, transcribes, compares to source passage |
+| **Huawei Machine Translation** | Word definitions in Chinese, Malay, Tamil — mother-tongue bridge for Singapore families |
+
+When Huawei Cloud is configured, it takes priority over OpenAI for every feature. OpenAI GPT-4o serves as a fallback when running without a deployed proxy.
+
+---
+
+## Singapore Context
+
+- Pre-loaded **PSLE curriculum passages** across Science, Maths, English, and Workplace documents
+- **Mother-tongue bridge** supports reading at home with parents who may not read English confidently
+- **Offline simulation mode** means the app works in classrooms without any API setup
+- **Freemium model**: Free tier for individuals, Student Pro at $4.90/month, School License at $800/year with teacher dashboards and Huawei Cloud NLP
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Vite + Vanilla JS (ES modules), single `index.html` |
+| Fonts | Lexend, OpenDyslexic, Inter (CDN) |
+| AI — school backend | Huawei Cloud OCR, NLP, SIS, Machine Translation (via `server.js` HMAC proxy) |
+| AI — personal / fallback | OpenAI GPT-4o (word decode, paragraph simplify, OCR vision) |
+| TTS | ElevenLabs neural voices; Web Speech API fallback |
+| PDF | PDF.js 3.11 (CDN global) |
+| Auth / Data | Mock localStorage auth; Firebase Auth + Firestore wired up but not yet active |
+| Hosting | Firebase Hosting (`read-em-215cc`) |
+| Proxy server | Plain Node.js `http` server, no framework |
+
+---
+
+## Access (Demo)
+
+- **Student / Reader**: Sign up with any email and choose the Student role. Accounts persist in your browser's `localStorage` — no backend required.
+- **Teacher Dashboard**: Sign up with any email and choose the Teacher role at registration to access classroom analytics.
+
+---
+
+## Local Setup
+
+**Prerequisites:** Node.js v16+
+
+```bash
+git clone <repo-url>
+cd read-em
+npm install
+npm run dev          # Vite dev server at http://localhost:5173
+npm run build        # Production build to dist/
+npm run preview      # Preview the production build locally
+node server.js       # Serve dist/ and Huawei proxy (run build first)
+npx firebase deploy --only hosting   # Deploy to Firebase Hosting
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env`. All variables are optional — the app falls back to offline simulation mode without them.
+
+```env
+# OpenAI — word decode, paragraph simplify, OCR vision (optional when Huawei is set)
+VITE_OPENAI_API_KEY=sk-...
+
+# ElevenLabs — neural TTS (optional, falls back to Web Speech API)
+VITE_ELEVENLABS_API_KEY=...
+VITE_ELEVENLABS_MODEL_ID=eleven_turbo_v2_5
+
+# Huawei Cloud proxy — browser config pointing to your server.js instance
+VITE_HUAWEI_ENDPOINT=http://localhost:3000
+VITE_HUAWEI_API_KEY=readem-dev-key
+
+# Huawei Cloud credentials — server-side only, never prefix with VITE_
+HUAWEI_AK=your_access_key
+HUAWEI_SK=your_secret_key
+HUAWEI_PROJECT_ID=your_project_id
+HUAWEI_REGION=ap-southeast-1
+SERVER_API_KEY=readem-dev-key
+
+# Firebase — placeholder for Phase 2 backend (see .env.example for full list)
+VITE_FIREBASE_API_KEY=...
+```
+
+---
+
+## License
+
+MIT

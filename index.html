@@ -28,8 +28,9 @@
       </div>
     </div>
 
-    <!-- Right Controls: Logout -->
+    <!-- Right Controls -->
     <div class="header-actions">
+      <button id="btn-plans" class="secondary-btn btn-sm" style="display:none;"><i class="fa-solid fa-tag"></i> Plans</button>
       <button id="btn-logout" class="icon-btn-text" style="display: none;"><i class="fa-solid fa-right-from-bracket"></i> Exit Workspace</button>
     </div>
   </header>
@@ -136,7 +137,7 @@
           <h3><i class="fa-solid fa-eye"></i> Visual Aids</h3>
           
           <div class="toggle-row">
-            <label for="toggle-ruler">Reading Ruler</label>
+            <label for="toggle-ruler" title="A horizontal guide that tracks your reading line — reduces line-skip errors common in dyslexia">Reading Ruler</label>
             <input type="checkbox" id="toggle-ruler" class="switch-input">
           </div>
           
@@ -147,13 +148,43 @@
           </div>
 
           <div class="toggle-row">
-            <label for="toggle-chunking">Sentence Chunking</label>
+            <label for="toggle-chunking" title="Groups words into short phrases — reduces the number of decisions your eyes have to make per line">Sentence Chunking</label>
             <input type="checkbox" id="toggle-chunking" class="switch-input">
           </div>
 
           <div class="toggle-row">
-            <label for="toggle-bionic">Bionic Reading</label>
+            <label for="toggle-line-focus" title="Dims all text except the line you are reading — helps you focus without losing your place">Line Focus</label>
+            <input type="checkbox" id="toggle-line-focus" class="switch-input">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-bionic" title="Bolds the first letters of each word — your brain recognises words faster from their starting shape">Bionic Reading</label>
             <input type="checkbox" id="toggle-bionic" class="switch-input">
+          </div>
+
+          <div class="slider-row" id="bionic-ratio-row" style="display:none;">
+            <label for="bionic-ratio-slider">Bold Ratio <span id="bionic-ratio-value">45%</span></label>
+            <input type="range" id="bionic-ratio-slider" min="20" max="70" value="45" step="5">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-syllable" title="Places dots between syllables — helps you sound out long words by breaking them into smaller chunks">Syllable Dots <span class="feature-badge">Phonics</span></label>
+            <input type="checkbox" id="toggle-syllable" class="switch-input">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-phonics-vowels" title="Highlights every vowel in colour — makes letter patterns more visible and supports phonics decoding">Vowel Highlights</label>
+            <input type="checkbox" id="toggle-phonics-vowels" class="switch-input">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-phonics-digraphs" title="Highlights two-letter sounds (th, ch, sh, ph) — a common confusion point for dyslexic readers">Digraph Highlights <span class="feature-badge">th ch sh</span></label>
+            <input type="checkbox" id="toggle-phonics-digraphs" class="switch-input">
+          </div>
+
+          <div class="toggle-row">
+            <label for="toggle-morpheme" title="Colours word parts separately (prefix, root, suffix) — helps you understand word meanings by seeing their building blocks">Morpheme Colours <span class="feature-badge">un- -ing</span></label>
+            <input type="checkbox" id="toggle-morpheme" class="switch-input">
           </div>
         </div>
 
@@ -169,6 +200,60 @@
             <label for="voice-speed-slider">Voice Speed</label>
             <span id="voice-speed-value">1.0x</span>
             <input type="range" id="voice-speed-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+          </div>
+
+          <div class="slider-row">
+            <label for="autopause-slider">Pause Between Sentences</label>
+            <span id="autopause-value">Off</span>
+            <input type="range" id="autopause-slider" min="0" max="4" step="1" value="0">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-droplet"></i> Colour Tint (Irlen)</h3>
+          <div class="toggle-row">
+            <label for="toggle-irlen">Enable Overlay</label>
+            <input type="checkbox" id="toggle-irlen" class="switch-input">
+          </div>
+          <div id="irlen-controls" style="display:none;">
+            <div class="irlen-color-row">
+              <label for="irlen-color">Tint Colour</label>
+              <input type="color" id="irlen-color" value="#ffeb99">
+            </div>
+            <div class="slider-row" style="margin-top: 8px;">
+              <label for="irlen-opacity">Opacity <span id="irlen-opacity-value">20%</span></label>
+              <input type="range" id="irlen-opacity" min="5" max="60" value="20">
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-book-open-reader"></i> Reading Flow</h3>
+          <div class="toggle-row">
+            <label for="toggle-focus-mode">Focus Mode (Zen)</label>
+            <input type="checkbox" id="toggle-focus-mode" class="switch-input">
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-progressive">Reveal Paragraph by Paragraph</label>
+            <input type="checkbox" id="toggle-progressive" class="switch-input">
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Quick Presets</h3>
+          <div class="presets-grid">
+            <button class="preset-btn" id="preset-dyslexia" title="OpenDyslexic font, large text, bionic reading, warm tint">
+              <i class="fa-solid fa-eye"></i><span>Dyslexia Pack</span>
+            </button>
+            <button class="preset-btn" id="preset-focus" title="Line focus, focus mode, cool tint">
+              <i class="fa-solid fa-bullseye"></i><span>Focus Mode</span>
+            </button>
+            <button class="preset-btn" id="preset-phonics" title="Enable all phonics overlays">
+              <i class="fa-solid fa-spell-check"></i><span>Phonics Mode</span>
+            </button>
+            <button class="preset-btn preset-reset" id="preset-reset" title="Reset all settings to defaults">
+              <i class="fa-solid fa-rotate-left"></i><span>Reset All</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -205,10 +290,18 @@
               <label for="demo-select">Load Subject Demo Material</label>
               <select id="demo-select">
                 <option value="" disabled selected>Select educational material...</option>
-                <option value="math-word">Math: Ratios & Fractions (Word Problem)</option>
-                <option value="science-passage">Science: Photosynthesis & Plant Cells</option>
-                <option value="history-passage">Humanities: Ancient Roman Architecture</option>
-                <option value="english-lit">Literature: The Story of Robin Hood</option>
+                <optgroup label="Singapore Curriculum (PSLE / Workplace)">
+                  <option value="sg-psle-science">P6 Science: The Water Cycle</option>
+                  <option value="sg-psle-math">P6 Maths: Marbles Word Problem</option>
+                  <option value="sg-psle-english">P6 English: Hawker Culture (Comprehension)</option>
+                  <option value="sg-workplace">Workplace: Performance Review Guide</option>
+                </optgroup>
+                <optgroup label="General Curriculum">
+                  <option value="math-word">Math: Ratios &amp; Fractions (Word Problem)</option>
+                  <option value="science-passage">Science: Photosynthesis &amp; Plant Cells</option>
+                  <option value="history-passage">Humanities: Ancient Roman Architecture</option>
+                  <option value="english-lit">Literature: The Story of Robin Hood</option>
+                </optgroup>
               </select>
             </div>
             
@@ -217,8 +310,24 @@
             </div>
           </div>
 
+          <!-- Text stats row shown once text is pasted -->
+          <div id="text-stats-row" class="text-stats-row" style="display:none;">
+            <span id="word-count-display"><i class="fa-solid fa-font"></i> 0 words</span>
+            <span id="text-difficulty-badge" class="difficulty-badge" style="display:none;"></span>
+            <span id="reading-time-badge"><i class="fa-regular fa-clock"></i> ~0 min read</span>
+          </div>
+
           <div class="upload-actions">
             <button id="btn-load-text" class="accent-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Adapt Document for Reading</button>
+          </div>
+
+          <!-- Session History -->
+          <div id="session-history-section" style="display:none; width: 100%; margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <div class="session-history-header">
+              <span><i class="fa-solid fa-clock-rotate-left"></i> Recent Sessions</span>
+              <button id="btn-clear-history" class="danger-btn btn-sm" title="Clear history"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+            <div id="session-history-list" class="session-history-list"></div>
           </div>
         </div>
 
@@ -242,10 +351,39 @@
             <div class="reader-mode-indicator">
               Subject: <strong id="reader-subject-indicator">English</strong>
             </div>
+
+            <span id="ai-status-badge" class="ai-status-badge ai-status-offline">Offline Mode</span>
+
+            <button id="btn-check-understanding" class="secondary-btn btn-sm" style="display:none;">
+              <i class="fa-solid fa-circle-question"></i> Check Understanding
+            </button>
+            <div class="assess-controls">
+              <button id="btn-start-assess" class="secondary-btn btn-sm" title="Read the passage aloud — Huawei AI scores your fluency word by word">
+                <i class="fa-solid fa-microphone"></i> Read Aloud Check
+              </button>
+              <button id="btn-stop-assess" class="danger-btn btn-sm" style="display:none;">
+                <i class="fa-solid fa-microphone-slash"></i> Stop &amp; Score
+              </button>
+            </div>
+            <button id="btn-shortcut-help" class="secondary-btn btn-sm" title="Keyboard shortcuts"><i class="fa-solid fa-keyboard"></i></button>
+          </div>
+
+          <!-- Fluency result bar — shown after Read Aloud Check -->
+          <div id="fluency-result" class="fluency-result" style="display:none;"></div>
+
+          <!-- Reading Progress Bar -->
+          <div class="reading-progress-wrapper" id="reading-progress-wrapper" style="display:none;">
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progress-bar-fill"></div>
+            </div>
+            <span class="reading-est-time" id="reading-est-time"></span>
           </div>
 
           <!-- The Rendered Text Output Panel -->
           <div class="reader-content-scroll">
+            <!-- Irlen colour tint overlay -->
+            <div id="irlen-overlay" class="irlen-overlay-div" style="display:none;"></div>
+
             <div id="reader-content" class="font-lexend">
               <!-- Dynamically populated word spans will render here -->
             </div>
@@ -268,7 +406,10 @@
       <aside class="sidebar-ai card">
         <div class="ai-section-header">
           <h2><i class="fa-solid fa-brain"></i> AI Companion</h2>
-          <span class="provider-pill">OpenAI</span>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span class="provider-pill" id="provider-pill">OpenAI</span>
+            <button id="btn-glossary" class="glossary-btn" title="My Word Glossary"><i class="fa-solid fa-bookmark"></i> Glossary</button>
+          </div>
         </div>
 
         <!-- Section 1: Dynamic Dictionary (Activated on Word Clicks) -->
@@ -283,7 +424,10 @@
           <div id="ai-dict-content" class="ai-card-body" style="display: none;">
             <div class="word-header">
               <h3 id="target-word">Photosynthesis</h3>
-              <button id="btn-speak-target" class="speak-word-btn" title="Hear word"><i class="fa-solid fa-volume-high"></i></button>
+              <div style="display: flex; gap: 6px;">
+                <button id="btn-speak-target" class="speak-word-btn" title="Hear word"><i class="fa-solid fa-volume-high"></i></button>
+                <button id="btn-save-glossary" class="btn-save-glossary" title="Save to glossary"><i class="fa-solid fa-bookmark"></i> Save</button>
+              </div>
             </div>
             
             <!-- Syllable Breakups Visual -->
@@ -310,6 +454,18 @@
             <div class="concept-display">
               <label>Concept Analogy</label>
               <p id="concept-analogy">Think of it like baking a cake, where the sun is the oven, water and air are the flour and sugar, and the plant is the chef.</p>
+            </div>
+
+            <!-- Mother-Tongue Bridge (Huawei MT) -->
+            <div class="language-bridge" id="language-bridge">
+              <label>Show in my language <span class="feature-badge" style="font-size:0.6rem;">Huawei MT</span></label>
+              <div class="lang-btn-row">
+                <button class="lang-btn" data-lang="zh">中文</button>
+                <button class="lang-btn" data-lang="ms">Melayu</button>
+                <button class="lang-btn" data-lang="ta">தமிழ்</button>
+                <button class="lang-btn lang-btn-off active" data-lang="">Off</button>
+              </div>
+              <div id="word-translation" class="word-translation" style="display:none;"></div>
             </div>
           </div>
         </div>
@@ -352,8 +508,16 @@
         <!-- Dashboard Summary Stat Cards -->
         <div class="teacher-overview-card card">
           <div class="overview-header">
-            <h2><i class="fa-solid fa-chart-line"></i> Classroom Literacy Overview</h2>
-            <p>Weekly passive log compiling areas of reading difficulties across student worksheets.</p>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+              <div>
+                <h2><i class="fa-solid fa-chart-line"></i> Classroom Literacy Overview</h2>
+                <p>Weekly passive log of reading difficulties across student worksheets.</p>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                <span class="provider-pill" style="font-size:0.7rem;"><i class="fa-solid fa-cloud"></i> Huawei Cloud</span>
+                <span style="font-size:0.68rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">School License Feature</span>
+              </div>
+            </div>
           </div>
           
           <div class="stats-row">
@@ -368,6 +532,14 @@
             <div class="stat-box">
               <span class="stat-num" id="stat-avg-speed">1.0x</span>
               <span class="stat-label">Avg. Reading Speed</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num" id="stat-total-sessions">0</span>
+              <span class="stat-label">Reading Sessions</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num" id="stat-avg-decode-rate">0%</span>
+              <span class="stat-label">Avg. Decode Rate</span>
             </div>
           </div>
 
@@ -390,6 +562,7 @@
                 <tr>
                   <th>Word</th>
                   <th>Subject</th>
+                  <th>Student</th>
                   <th>Actions Triggered</th>
                   <th>Difficulty Level</th>
                 </tr>
@@ -415,10 +588,247 @@
             <p class="table-empty">No sentences simplified yet. Areas of reading fatigue will register here.</p>
           </div>
         </div>
+
+        <!-- Student Progress Sparklines -->
+        <div class="digest-detail-card card" id="student-progress-section" style="display:none;">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-chart-line"></i> Student Reading Progress</h3>
+            <span>WPM trend over last 10 sessions per student</span>
+          </div>
+          <div id="student-progress-list" class="student-progress-list"></div>
+        </div>
       </div>
     </section>
 
   </main>
+
+  <!-- Onboarding Wizard Modal -->
+  <div id="onboarding-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card onboarding-card">
+
+      <!-- Step 1: Font selection -->
+      <div class="onboarding-step" id="onboard-step-1">
+        <div class="onboard-hero">
+          <img src="/assets/readem_logo.png" alt="Read'Em Logo" style="width:64px; height:64px; border-radius:12px; margin-bottom:12px;">
+          <h2>Welcome to Read'Em</h2>
+          <p class="settings-hint">Quick setup — 3 steps to make reading easier for you.</p>
+        </div>
+        <div style="margin-top: 20px;">
+          <label style="font-weight:700; font-size:0.9rem; display:block; margin-bottom:12px;">Which text feels easiest to read?</label>
+          <div class="font-picker-grid">
+            <button class="font-pick-btn active" data-font="font-lexend">
+              <span class="font-pick-sample font-lexend">The quick brown fox</span>
+              <small>Lexend <span class="feature-badge">Recommended</span></small>
+            </button>
+            <button class="font-pick-btn" data-font="font-opendyslexic">
+              <span class="font-pick-sample font-opendyslexic">The quick brown fox</span>
+              <small>OpenDyslexic</small>
+            </button>
+            <button class="font-pick-btn" data-font="font-inter">
+              <span class="font-pick-sample font-inter">The quick brown fox</span>
+              <small>Inter (Standard)</small>
+            </button>
+          </div>
+        </div>
+        <div class="onboard-footer">
+          <button id="btn-skip-onboard" class="secondary-btn">Skip setup</button>
+          <button id="onboard-next-1" class="primary-btn">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Step 2: Subject preference -->
+      <div class="onboarding-step" id="onboard-step-2" style="display:none;">
+        <h2>What do you mainly read?</h2>
+        <p class="settings-hint">We use this to give better word definitions and explanations.</p>
+        <div class="subject-picker-grid" style="margin-top: 20px;">
+          <button class="subject-pick-btn active" data-subject="General"><i class="fa-solid fa-book"></i> General</button>
+          <button class="subject-pick-btn" data-subject="Science"><i class="fa-solid fa-flask"></i> Science</button>
+          <button class="subject-pick-btn" data-subject="Mathematics"><i class="fa-solid fa-calculator"></i> Maths</button>
+          <button class="subject-pick-btn" data-subject="History"><i class="fa-solid fa-landmark"></i> History</button>
+          <button class="subject-pick-btn" data-subject="Literature"><i class="fa-solid fa-feather-pointed"></i> English</button>
+          <button class="subject-pick-btn" data-subject="Work"><i class="fa-solid fa-briefcase"></i> Work Docs</button>
+        </div>
+        <div class="onboard-footer">
+          <button id="onboard-next-2" class="primary-btn">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Step 3: Reading difficulty -->
+      <div class="onboarding-step" id="onboard-step-3" style="display:none;">
+        <h2>How do you usually find reading?</h2>
+        <p class="settings-hint">We will set up the best starting settings for you.</p>
+        <div class="difficulty-picker-grid" style="margin-top: 20px;">
+          <button class="difficulty-pick-btn" data-level="easy">
+            <i class="fa-solid fa-face-smile" style="font-size:1.8rem; color: var(--success-color);"></i>
+            <strong>Easy</strong>
+            <span>I read comfortably</span>
+          </button>
+          <button class="difficulty-pick-btn" data-level="medium">
+            <i class="fa-solid fa-face-meh" style="font-size:1.8rem; color: var(--accent-color);"></i>
+            <strong>Sometimes hard</strong>
+            <span>Some words trip me up</span>
+          </button>
+          <button class="difficulty-pick-btn active" data-level="hard">
+            <i class="fa-solid fa-face-tired" style="font-size:1.8rem; color: var(--danger-color);"></i>
+            <strong>Very hard</strong>
+            <span>Reading takes a lot of effort</span>
+          </button>
+        </div>
+        <div class="onboard-footer">
+          <button id="onboard-finish" class="primary-btn"><i class="fa-solid fa-check"></i> Start Reading</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Help Modal -->
+  <div id="shortcut-help-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-keyboard"></i> Keyboard Shortcuts</h2>
+      </div>
+      <div class="modal-body" style="padding: 16px 24px;">
+        <div class="shortcut-list">
+          <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause reading</span></div>
+          <div class="shortcut-item"><kbd>→</kbd><span>Highlight next word</span></div>
+          <div class="shortcut-item"><kbd>←</kbd><span>Highlight previous word</span></div>
+          <div class="shortcut-item"><kbd>Enter</kbd><span>Decode highlighted word</span></div>
+          <div class="shortcut-item"><kbd>Esc</kbd><span>Stop reading / close modal</span></div>
+          <div class="shortcut-item"><kbd>+</kbd><span>Increase font size</span></div>
+          <div class="shortcut-item"><kbd>−</kbd><span>Decrease font size</span></div>
+          <div class="shortcut-item"><kbd>B</kbd><span>Toggle bionic reading</span></div>
+          <div class="shortcut-item"><kbd>F</kbd><span>Toggle focus mode</span></div>
+          <div class="shortcut-item"><kbd>?</kbd><span>Show this help panel</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="shortcut-close-btn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vocabulary Pre-Teaching Modal -->
+  <div id="vocab-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card vocab-modal-card">
+      <div class="modal-header">
+        <div>
+          <h2><i class="fa-solid fa-book-open"></i> Key Words to Know</h2>
+          <p class="settings-hint" style="margin-top: 4px;">Learn these words before you start reading</p>
+        </div>
+      </div>
+      <div class="modal-body" id="vocab-word-list" style="max-height: 440px; overflow-y: auto;">
+        <div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Identifying key vocabulary...</div>
+      </div>
+      <div class="modal-footer" style="gap: 12px;">
+        <button id="vocab-skip-btn" class="secondary-btn"><i class="fa-solid fa-forward"></i> Skip Preview</button>
+        <button id="vocab-start-btn" class="primary-btn"><i class="fa-solid fa-book-open-reader"></i> Start Reading</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comprehension Check Modal -->
+  <div id="comprehension-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-circle-question"></i> Check Your Understanding</h2>
+      </div>
+      <div class="modal-body" id="comprehension-body" style="max-height: 440px; overflow-y: auto;">
+        <div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Generating questions...</div>
+      </div>
+      <div class="modal-footer" style="gap: 12px; align-items: center; flex-wrap: wrap;">
+        <span id="comprehension-answer-count" style="color:var(--text-muted); font-size:0.85rem; flex:1; min-width: 100px;"></span>
+        <button id="comprehension-done-btn" class="primary-btn btn-sm" style="display:none;"><i class="fa-solid fa-check"></i> Done</button>
+        <button id="comprehension-close-btn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Word Glossary Modal -->
+  <div id="glossary-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-bookmark"></i> My Word Glossary</h2>
+      </div>
+      <div class="modal-body" id="glossary-body" style="max-height: 420px; overflow-y: auto; padding: 0;">
+        <p class="table-empty" style="padding: 32px;">No words saved yet. Click any word while reading, then tap Save.</p>
+      </div>
+      <div class="modal-footer" style="gap: 12px;">
+        <button id="glossary-clear-btn" class="danger-btn btn-sm"><i class="fa-solid fa-trash-can"></i> Clear All</button>
+        <button id="glossary-close-btn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Summary Modal -->
+  <div id="session-summary-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-flag-checkered"></i> Session Complete</h2>
+      </div>
+      <div class="modal-body" id="session-summary-body" style="padding: 16px 24px;">
+      </div>
+      <div class="modal-footer">
+        <button id="session-summary-close-btn" class="primary-btn"><i class="fa-solid fa-rotate-left"></i> Read More</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plans Modal -->
+  <div id="plans-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 660px;">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-tag"></i> Read'Em Plans</h2>
+      </div>
+      <div class="modal-body" style="padding: 16px 24px;">
+        <div class="plans-grid">
+          <div class="plan-card">
+            <div class="plan-name">Free</div>
+            <div class="plan-price">$0 <span>/ forever</span></div>
+            <ul class="plan-features">
+              <li><i class="fa-solid fa-check"></i> All reading tools</li>
+              <li><i class="fa-solid fa-check"></i> Word decoder</li>
+              <li><i class="fa-solid fa-check"></i> TTS read aloud</li>
+              <li><i class="fa-solid fa-check"></i> Offline fallback mode</li>
+              <li style="color:var(--text-muted);"><i class="fa-solid fa-xmark"></i> AI simplification</li>
+              <li style="color:var(--text-muted);"><i class="fa-solid fa-xmark"></i> Comprehension check</li>
+            </ul>
+            <span class="plan-current">Your current plan</span>
+          </div>
+          <div class="plan-card plan-highlighted">
+            <div class="plan-badge">Most Popular</div>
+            <div class="plan-name">Student Pro</div>
+            <div class="plan-price">$4.90 <span>/ month</span></div>
+            <ul class="plan-features">
+              <li><i class="fa-solid fa-check"></i> Everything in Free</li>
+              <li><i class="fa-solid fa-check"></i> AI paragraph simplification</li>
+              <li><i class="fa-solid fa-check"></i> Comprehension questions</li>
+              <li><i class="fa-solid fa-check"></i> Neural TTS voices</li>
+              <li><i class="fa-solid fa-check"></i> Session history &amp; progress</li>
+              <li><i class="fa-solid fa-check"></i> PDF &amp; image upload</li>
+            </ul>
+            <button class="primary-btn" style="width:100%; margin-top:12px;">Get Student Pro</button>
+          </div>
+          <div class="plan-card">
+            <div class="plan-name">School License</div>
+            <div class="plan-price">$800 <span>/ year</span></div>
+            <ul class="plan-features">
+              <li><i class="fa-solid fa-check"></i> Everything in Student Pro</li>
+              <li><i class="fa-solid fa-check"></i> Unlimited student accounts</li>
+              <li><i class="fa-solid fa-check"></i> Teacher dashboard</li>
+              <li><i class="fa-solid fa-check"></i> Huawei Cloud NLP</li>
+              <li><i class="fa-solid fa-check"></i> Class analytics &amp; reports</li>
+              <li><i class="fa-solid fa-check"></i> Priority support</li>
+            </ul>
+            <button class="secondary-btn" style="width:100%; margin-top:12px;">Contact Us</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="plans-close-btn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- PDF.js Global Script dependencies -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -426,6 +836,25 @@
     // Point PDF.js to the worker script CDN to enable clean worker execution
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
+
+  <!-- Toast notification container -->
+  <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- Confirm dialog -->
+  <div id="confirm-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="confirm-title">Are you sure?</h2>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message" class="settings-hint"></p>
+      </div>
+      <div class="modal-footer" style="gap:12px;">
+        <button id="confirm-cancel" class="secondary-btn">Cancel</button>
+        <button id="confirm-ok" class="danger-btn">Yes, continue</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Application Logic Modules -->
   <script type="module" src="/src/main.js"></script>

@@ -1,14 +1,21 @@
 /* ==========================================================================
-   Sup' Read With Me Main Orchestrator (src/main.js)
+   Read'Em Main Orchestrator (src/main.js)
    ========================================================================== */
 
-import { TTS } from './tts.js';
-import { AIService } from './ai-service.js';
-import { Tracker, setTrackerUser } from './tracker.js';
-import { extractTextFromPDF, readTextFile } from './pdf-handler.js';
-import { Auth } from './auth.js';
+import { TTS } from './services/tts.js';
+import { AIService } from './services/ai-service.js';
+import { Tracker, setTrackerUser } from './store/tracker.js';
+import { extractTextFromPDF, readTextFile } from './services/pdf-handler.js';
+import { Auth } from './store/auth.js';
 
-// Global application state
+/* ==================== PHONICS / OVERLAY CONSTANTS ==================== */
+const DIGRAPH_SET = new Set(['th', 'ch', 'sh', 'ph', 'wh', 'ck', 'ng', 'gh', 'kn', 'wr']);
+const VOWEL_DIGRAPH_SET = new Set(['ai', 'ay', 'ea', 'ee', 'ei', 'ey', 'ie', 'oa', 'oe', 'oi', 'oo', 'ou', 'ow', 'oy', 'au', 'aw', 'ue', 'ui', 'eu']);
+const SIMPLE_VOWELS = new Set('aeiou');
+const PREFIX_TABLE = ['inter', 'trans', 'super', 'under', 'over', 'semi', 'multi', 'anti', 'non', 'pre', 'dis', 'mis', 'un', 're', 'de', 'co', 'ex', 'bi', 'tri', 'sub', 'pro', 'fore', 'mid', 'out'];
+const SUFFIX_TABLE = ['tion', 'sion', 'ness', 'ment', 'less', 'ful', 'able', 'ible', 'ious', 'ous', 'ive', 'ize', 'ise', 'ify', 'ship', 'hood', 'ward', 'wise', 'ing', 'age', 'al', 'ic', 'ly', 'er', 'ed', 'est'];
+
+/* ==================== GLOBAL APPLICATION STATE ==================== */
 let appState = {
   rawText: '',
   subject: 'General',
@@ -17,11 +24,55 @@ let appState = {
   isPlaying: false,
   isPaused: false,
   activeWordIdx: -1,
-  rulerActive: false
+  rulerActive: false,
+  savedScrollTop: 0,
+  pdfDoc: null,
+  role: null,
+  overlays: {
+    syllable: false,
+    phonicsVowels: false,
+    phonicsDigraphs: false,
+    morpheme: false,
+    bionic: false,
+    bionicRatio: 0.45,
+  },
+  focusMode: false,
+  progressiveReveal: false,
+  progressiveIdx: 0,
+  pendingPreteachText: null,
+  lastDecodedWordData: null,
+  sessionId: null,
+  sessionStartTime: null,
+  sessionWordDecodes: 0,
+  sessionSimplifications: 0,
+  // Oral fluency assessment
+  assessmentMode: false,
+  assessmentStartTime: null,
+  pcmRecorder: null,
+  // Mother-tongue bridge
+  bridgeLang: '',
 };
 
-// Curriculum Demo Materials
+/* ==================== CURRICULUM DEMO MATERIALS ==================== */
 const DEMO_MATERIALS = {
+  // Singapore Primary curriculum (PSLE-level)
+  "sg-psle-science": {
+    subject: "Science",
+    text: "Living things need water to survive. Water exists in three states: solid ice, liquid water, and water vapour, which is a gas. When water is heated by the sun, it changes into water vapour and rises into the atmosphere. This process is called evaporation. When water vapour rises higher and cools down, it condenses into tiny droplets that form clouds. Eventually, water falls back to Earth as rain. This continuous movement of water between the Earth and atmosphere is called the water cycle, and it ensures that fresh water is continuously available on our planet."
+  },
+  "sg-psle-math": {
+    subject: "Mathematics",
+    text: "Ahmad bought 3 identical bags of marbles. Each bag contained 48 marbles. He gave 27 marbles to his classmates and packed the remaining marbles equally into 9 containers. How many marbles were there in each container? To solve this problem, first calculate the total number of marbles Ahmad started with. Then subtract the number he gave to his classmates. Finally, divide the remaining marbles equally among the 9 containers to find how many are in each container."
+  },
+  "sg-psle-english": {
+    subject: "Literature",
+    text: "The old hawker uncle had been frying char kway teow at the same stall in Tiong Bahru Market for over forty years. Every morning, he arrived before dawn to prepare his ingredients: flat rice noodles, bean sprouts, cockles, eggs, and his secret blend of dark soy sauce and chilli paste. The familiar sizzle of the wok and the fragrant smoke rising into the air drew a long queue of loyal customers. For many Singaporeans, eating at his stall was not merely about food but about reconnecting with the comforting sights, sounds and smells of childhood."
+  },
+  "sg-workplace": {
+    subject: "General",
+    text: "The Performance Review process is conducted twice yearly to assess each employee's contributions and identify areas for development. During the review meeting, your manager will discuss your key performance indicators, which are the measurable goals agreed upon at the start of the year. You are encouraged to prepare a self-evaluation form beforehand, summarising achievements, challenges faced, and your professional development goals. The outcome of your review will inform decisions regarding annual increments and promotion eligibility for the coming financial year."
+  },
+  // General curriculum passages
   "math-word": {
     subject: "Mathematics",
     text: "In order to evaluate the relationship between two distinct sets of objects, you must perform a comparative analysis of their quantities. Consider group A, which consists of 4 red blocks, and group B, which consists of 8 blue blocks. Determine the ratio of group A to group B, expressing the relationship in its simplest equivalent fractional representation."
@@ -40,13 +91,10 @@ const DEMO_MATERIALS = {
   }
 };
 
-// DOM Elements
+/* ==================== DOM ELEMENT CACHE ==================== */
 const doc = {
-  // Navigation & Role Layouts
   viewLandingPortal: document.getElementById('view-landing-portal'),
   btnLogout: document.getElementById('btn-logout'),
-
-  // Auth Sign In / Sign Up
   tabSignIn: document.getElementById('tab-signin'),
   tabSignUp: document.getElementById('tab-signup'),
   authRoleField: document.getElementById('auth-role-field'),
@@ -55,11 +103,8 @@ const doc = {
   authPassword: document.getElementById('auth-password'),
   authError: document.getElementById('auth-error'),
   btnAuthSubmit: document.getElementById('btn-auth-submit'),
-  
   readerWorkspace: document.getElementById('reader-workspace'),
   teacherWorkspace: document.getElementById('teacher-workspace'),
-  
-  // Settings Panel Inputs
   fontFamily: document.getElementById('font-family-select'),
   fontSize: document.getElementById('font-size-slider'),
   fontSizeVal: document.getElementById('font-size-value'),
@@ -70,21 +115,38 @@ const doc = {
   wordSpacing: document.getElementById('word-spacing-slider'),
   wordSpacingVal: document.getElementById('word-spacing-value'),
   themeSwatches: document.querySelectorAll('.swatch'),
-  
-  // Visual Aids Toggles
   toggleRuler: document.getElementById('toggle-ruler'),
   rulerControls: document.querySelector('.ruler-control'),
   rulerHeight: document.getElementById('ruler-height-slider'),
   rulerHeightVal: document.getElementById('ruler-height-value'),
   toggleChunking: document.getElementById('toggle-chunking'),
+  toggleLineFocus: document.getElementById('toggle-line-focus'),
   toggleBionic: document.getElementById('toggle-bionic'),
-  
-  // Audio Panel
+  bionicRatioRow: document.getElementById('bionic-ratio-row'),
+  bionicRatioSlider: document.getElementById('bionic-ratio-slider'),
+  bionicRatioValue: document.getElementById('bionic-ratio-value'),
+  // New phonics toggles
+  toggleSyllable: document.getElementById('toggle-syllable'),
+  togglePhonicsVowels: document.getElementById('toggle-phonics-vowels'),
+  togglePhonicsDigraphs: document.getElementById('toggle-phonics-digraphs'),
+  toggleMorpheme: document.getElementById('toggle-morpheme'),
+  // Irlen overlay
+  toggleIrlen: document.getElementById('toggle-irlen'),
+  irlenControls: document.getElementById('irlen-controls'),
+  irlenColor: document.getElementById('irlen-color'),
+  irlenOpacity: document.getElementById('irlen-opacity'),
+  irlenOpacityValue: document.getElementById('irlen-opacity-value'),
+  irlenOverlay: document.getElementById('irlen-overlay'),
+  // Reading flow
+  toggleFocusMode: document.getElementById('toggle-focus-mode'),
+  toggleProgressive: document.getElementById('toggle-progressive'),
+  autopauseSlider: document.getElementById('autopause-slider'),
+  autopauseValue: document.getElementById('autopause-value'),
+  // Audio panel
   voiceSelect: document.getElementById('voice-select'),
   voiceSpeed: document.getElementById('voice-speed-slider'),
   voiceSpeedVal: document.getElementById('voice-speed-value'),
-
-  // Upload Panel Views
+  // Upload panel
   panelUpload: document.getElementById('panel-upload'),
   dropzone: document.getElementById('dropzone'),
   fileInput: document.getElementById('file-input'),
@@ -93,8 +155,7 @@ const doc = {
   demoSelect: document.getElementById('demo-select'),
   subjectBadge: document.getElementById('subject-badge'),
   btnLoadText: document.getElementById('btn-load-text'),
-
-  // Active Reader View
+  // Reader panel
   panelReader: document.getElementById('panel-reader'),
   btnViewReflowed: document.getElementById('btn-view-reflowed'),
   btnViewPdf: document.getElementById('btn-view-pdf'),
@@ -104,51 +165,154 @@ const doc = {
   scrollContainer: document.querySelector('.reader-content-scroll'),
   readerSubject: document.getElementById('reader-subject-indicator'),
   btnBackUpload: document.getElementById('btn-back-upload'),
-  
-  // Reader Audio Controls
   btnPlay: document.getElementById('btn-play-speech'),
   btnPause: document.getElementById('btn-pause-speech'),
   btnStop: document.getElementById('btn-stop-speech'),
-
-  // AI Helper Panel (Right)
+  btnCheckUnderstanding: document.getElementById('btn-check-understanding'),
+  progressWrapper: document.getElementById('reading-progress-wrapper'),
+  progressFill: document.getElementById('progress-bar-fill'),
+  progressTime: document.getElementById('reading-est-time'),
+  // AI helper panel
   aiDictEmpty: document.getElementById('ai-dict-empty'),
   aiDictContent: document.getElementById('ai-dict-content'),
   targetWord: document.getElementById('target-word'),
   btnSpeakTarget: document.getElementById('btn-speak-target'),
+  btnSaveGlossary: document.getElementById('btn-save-glossary'),
   syllablesChunked: document.getElementById('syllables-chunked'),
   phoneticGuide: document.getElementById('phonetic-guide'),
   wordDefinition: document.getElementById('word-definition'),
   conceptAnalogy: document.getElementById('concept-analogy'),
-
   aiSimplifierEmpty: document.getElementById('ai-simplifier-empty'),
   aiSimplifierContent: document.getElementById('ai-simplifier-content'),
   simplifiedOriginal: document.getElementById('simplified-original'),
   simplifiedResult: document.getElementById('simplified-result'),
   btnReplaceOriginal: document.getElementById('btn-replace-original'),
-
-  // Teacher Dashboard Panels
+  btnGlossary: document.getElementById('btn-glossary'),
+  // Fluency assessment
+  btnStartAssess: document.getElementById('btn-start-assess'),
+  btnStopAssess: document.getElementById('btn-stop-assess'),
+  fluencyResult: document.getElementById('fluency-result'),
+  // Language bridge
+  languageBridge: document.getElementById('language-bridge'),
+  wordTranslation: document.getElementById('word-translation'),
+  // Plans & session summary modals
+  plansModal: document.getElementById('plans-modal'),
+  plansCloseBtn: document.getElementById('plans-close-btn'),
+  sessionSummaryModal: document.getElementById('session-summary-modal'),
+  sessionSummaryBody: document.getElementById('session-summary-body'),
+  sessionSummaryCloseBtn: document.getElementById('session-summary-close-btn'),
+  // Teacher dashboard
   statWordsCount: document.getElementById('stat-words-count'),
   statSimplifications: document.getElementById('stat-simplifications'),
   statAvgSpeed: document.getElementById('stat-avg-speed'),
+  statTotalSessions: document.getElementById('stat-total-sessions'),
+  statAvgDecodeRate: document.getElementById('stat-avg-decode-rate'),
+  studentProgressSection: document.getElementById('student-progress-section'),
+  studentProgressList: document.getElementById('student-progress-list'),
   btnRefreshDigest: document.getElementById('btn-refresh-digest'),
   btnExportDigest: document.getElementById('btn-export-digest'),
   btnClearDigest: document.getElementById('btn-clear-digest'),
   struggledWordsTbody: document.getElementById('struggled-words-tbody'),
-  simplifiedSentencesList: document.getElementById('simplified-sentences-list')
+  simplifiedSentencesList: document.getElementById('simplified-sentences-list'),
+  // System overlays
+  toastContainer: document.getElementById('toast-container'),
+  confirmOverlay: document.getElementById('confirm-overlay'),
+  confirmTitle: document.getElementById('confirm-title'),
+  confirmMessage: document.getElementById('confirm-message'),
+  confirmOk: document.getElementById('confirm-ok'),
+  confirmCancel: document.getElementById('confirm-cancel'),
+  // Provider badge & AI status
+  providerPill: document.getElementById('provider-pill'),
+  aiStatusBadge: document.getElementById('ai-status-badge'),
+  // Header actions
+  btnPlans: document.getElementById('btn-plans'),
+  // Modals
+  vocabModal: document.getElementById('vocab-modal'),
+  vocabWordList: document.getElementById('vocab-word-list'),
+  vocabSkipBtn: document.getElementById('vocab-skip-btn'),
+  vocabStartBtn: document.getElementById('vocab-start-btn'),
+  comprehensionModal: document.getElementById('comprehension-modal'),
+  comprehensionBody: document.getElementById('comprehension-body'),
+  comprehensionCloseBtn: document.getElementById('comprehension-close-btn'),
+  comprehensionAnswerCount: document.getElementById('comprehension-answer-count'),
+  comprehensionDoneBtn: document.getElementById('comprehension-done-btn'),
+  glossaryModal: document.getElementById('glossary-modal'),
+  glossaryBody: document.getElementById('glossary-body'),
+  glossaryClearBtn: document.getElementById('glossary-clear-btn'),
+  glossaryCloseBtn: document.getElementById('glossary-close-btn'),
+  // Onboarding wizard
+  onboardingModal: document.getElementById('onboarding-modal'),
+  onboardStep1: document.getElementById('onboard-step-1'),
+  onboardStep2: document.getElementById('onboard-step-2'),
+  onboardStep3: document.getElementById('onboard-step-3'),
+  onboardNext1: document.getElementById('onboard-next-1'),
+  onboardNext2: document.getElementById('onboard-next-2'),
+  onboardFinish: document.getElementById('onboard-finish'),
+  btnSkipOnboard: document.getElementById('btn-skip-onboard'),
+  // Quick presets
+  presetDyslexia: document.getElementById('preset-dyslexia'),
+  presetFocus: document.getElementById('preset-focus'),
+  presetPhonics: document.getElementById('preset-phonics'),
+  presetReset: document.getElementById('preset-reset'),
+  // Session history
+  sessionHistorySection: document.getElementById('session-history-section'),
+  sessionHistoryList: document.getElementById('session-history-list'),
+  btnClearHistory: document.getElementById('btn-clear-history'),
+  // Shortcut help
+  shortcutHelpModal: document.getElementById('shortcut-help-modal'),
+  shortcutCloseBtn: document.getElementById('shortcut-close-btn'),
+  btnShortcutHelp: document.getElementById('btn-shortcut-help'),
+  // Text stats
+  textStatsRow: document.getElementById('text-stats-row'),
+  wordCountDisplay: document.getElementById('word-count-display'),
+  textDifficultyBadge: document.getElementById('text-difficulty-badge'),
+  readingTimeBadge: document.getElementById('reading-time-badge'),
 };
 
-// Keep tracking variables
 let lastSimplifiedParagraphIdx = -1;
-let authMode = 'signin'; // 'signin' | 'signup'
+let authMode = 'signin';
+
+/* ==================== NOTIFICATION HELPERS ==================== */
+function showToast(message, type = 'info', duration = 3500) {
+  const toast = document.createElement('div');
+  const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info' };
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i> ${message}`;
+  doc.toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, duration);
+}
+
+function showConfirm(message, onConfirm) {
+  doc.confirmMessage.textContent = message;
+  doc.confirmOverlay.style.display = 'flex';
+  const cleanup = () => { doc.confirmOverlay.style.display = 'none'; };
+  const handleOk = () => { cleanup(); onConfirm(); doc.confirmOk.removeEventListener('click', handleOk); doc.confirmCancel.removeEventListener('click', handleCancel); };
+  const handleCancel = () => { cleanup(); doc.confirmOk.removeEventListener('click', handleOk); doc.confirmCancel.removeEventListener('click', handleCancel); };
+  doc.confirmOk.addEventListener('click', handleOk);
+  doc.confirmCancel.addEventListener('click', handleCancel);
+}
 
 /* ==================== INITIALIZATION ==================== */
 document.addEventListener('DOMContentLoaded', () => {
   initUIPreferences();
   initVoiceList();
   initEventListeners();
+  initKeyboardNav();
+  loadGlossaryFromStorage();
+  renderSessionHistory();
+  updateProviderBadge();
+  updateAIStatusBadge();
+  // Restore language bridge preference
+  appState.bridgeLang = localStorage.getItem('readem_bridge_lang') || '';
+  if (appState.bridgeLang) {
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-lang') === appState.bridgeLang);
+    });
+  }
 
-  // React to Firebase auth state: route signed-in users straight to their
-  // role's workspace, otherwise show the sign in/up portal.
   Auth.onAuthChange(async (user) => {
     if (user) {
       const role = await Auth.getUserRole(user.uid);
@@ -161,249 +325,233 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Configure UI inputs from stylesheet variables
 function initUIPreferences() {
-  // Populate typography settings from current layout defaults
   doc.fontSizeVal.textContent = `${doc.fontSize.value}px`;
   doc.lineHeightVal.textContent = doc.lineHeight.value;
   doc.letterSpacingVal.textContent = `${doc.letterSpacing.value}em`;
   doc.wordSpacingVal.textContent = `${doc.wordSpacing.value}em`;
   doc.voiceSpeedVal.textContent = `${doc.voiceSpeed.value}x`;
-
   applyTypographyStyles();
 }
 
-// Populate system voices inside select input
 function initVoiceList() {
   TTS.initVoices((voices) => {
-    doc.voiceSelect.innerHTML = voices.map(v => 
+    doc.voiceSelect.innerHTML = voices.map(v =>
       `<option value="${v.value || v.name}" ${v.default ? 'selected' : ''}>${v.name} (${v.lang})</option>`
     ).join('');
-    
-    // Choose first standard voice if none selected
     if (voices.length > 0 && !doc.voiceSelect.value) {
       doc.voiceSelect.value = voices[0].value || voices[0].name;
     }
   });
 }
 
-// Bind interactive event actions
 function initEventListeners() {
-  // Landing Portal Auth Form
+  // Auth
   doc.tabSignIn.addEventListener('click', () => setAuthMode('signin'));
   doc.tabSignUp.addEventListener('click', () => setAuthMode('signup'));
   doc.btnAuthSubmit.addEventListener('click', () => handleAuthSubmit());
-  doc.authPassword.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleAuthSubmit();
-  });
+  doc.authPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAuthSubmit(); });
   doc.btnLogout.addEventListener('click', logOut);
 
-  // PDF Original Layout View Toggles
+  // Layout toggles
   doc.btnViewReflowed.addEventListener('click', () => switchLayoutView('reflowed'));
   doc.btnViewPdf.addEventListener('click', () => switchLayoutView('pdf'));
 
-  // Typography Settings Changes
+  // Typography
   doc.fontFamily.addEventListener('change', () => {
     applyTypographyStyles();
-    // Reapply bionic format if active
-    if (doc.toggleBionic.checked) applyBionicFormatting(true);
+    applyContentOverlays();
   });
-  
-  doc.fontSize.addEventListener('input', (e) => {
-    doc.fontSizeVal.textContent = `${e.target.value}px`;
-    applyTypographyStyles();
-  });
-  
-  doc.lineHeight.addEventListener('input', (e) => {
-    doc.lineHeightVal.textContent = e.target.value;
-    applyTypographyStyles();
-  });
-  
-  doc.letterSpacing.addEventListener('input', (e) => {
-    doc.letterSpacingVal.textContent = `${e.target.value}em`;
-    applyTypographyStyles();
-  });
-  
-  doc.wordSpacing.addEventListener('input', (e) => {
-    doc.wordSpacingVal.textContent = `${e.target.value}em`;
-    applyTypographyStyles();
-  });
+  doc.fontSize.addEventListener('input', (e) => { doc.fontSizeVal.textContent = `${e.target.value}px`; applyTypographyStyles(); });
+  doc.lineHeight.addEventListener('input', (e) => { doc.lineHeightVal.textContent = e.target.value; applyTypographyStyles(); });
+  doc.letterSpacing.addEventListener('input', (e) => { doc.letterSpacingVal.textContent = `${e.target.value}em`; applyTypographyStyles(); });
+  doc.wordSpacing.addEventListener('input', (e) => { doc.wordSpacingVal.textContent = `${e.target.value}em`; applyTypographyStyles(); });
 
-  // Background Theme Selection
+  // Theme swatches
   doc.themeSwatches.forEach(swatch => {
     swatch.addEventListener('click', (e) => {
       doc.themeSwatches.forEach(s => s.classList.remove('active'));
-      const swatchBtn = e.target;
-      swatchBtn.classList.add('active');
-      
-      const themeClass = swatchBtn.getAttribute('data-theme');
-      
-      // Clear body theme classes
+      e.target.classList.add('active');
       document.body.className = '';
-      document.body.classList.add(themeClass);
+      document.body.classList.add(e.target.getAttribute('data-theme'));
     });
   });
 
-  // Visual Guides
+  // Ruler
   doc.toggleRuler.addEventListener('change', (e) => {
     appState.rulerActive = e.target.checked;
-    if (appState.rulerActive) {
-      doc.rulerControls.style.display = 'block';
-      doc.readerRuler.style.display = 'block';
-      doc.readerRuler.style.height = `${doc.rulerHeight.value}px`;
-    } else {
-      doc.rulerControls.style.display = 'none';
-      doc.readerRuler.style.display = 'none';
-    }
+    doc.rulerControls.style.display = e.target.checked ? 'block' : 'none';
+    doc.readerRuler.style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.checked) doc.readerRuler.style.height = `${doc.rulerHeight.value}px`;
   });
-
   doc.rulerHeight.addEventListener('input', (e) => {
     doc.rulerHeightVal.textContent = `${e.target.value}px`;
-    if (appState.rulerActive) {
-      doc.readerRuler.style.height = `${e.target.value}px`;
-    }
+    if (appState.rulerActive) doc.readerRuler.style.height = `${e.target.value}px`;
   });
 
+  // Visual Aid toggles
   doc.toggleChunking.addEventListener('change', (e) => {
-    if (e.target.checked) {
-      doc.readerContent.classList.add('show-chunking');
-    } else {
-      doc.readerContent.classList.remove('show-chunking');
+    doc.readerContent.classList.toggle('show-chunking', e.target.checked);
+  });
+  doc.toggleLineFocus.addEventListener('change', (e) => {
+    doc.readerContent.classList.toggle('line-focus-active', e.target.checked);
+  });
+
+  // Unified overlay toggles
+  doc.toggleBionic.addEventListener('change', (e) => {
+    appState.overlays.bionic = e.target.checked;
+    doc.bionicRatioRow.style.display = e.target.checked ? 'block' : 'none';
+    applyContentOverlays();
+  });
+  doc.bionicRatioSlider.addEventListener('input', (e) => {
+    doc.bionicRatioValue.textContent = `${e.target.value}%`;
+    appState.overlays.bionicRatio = parseInt(e.target.value) / 100;
+    if (appState.overlays.bionic) applyContentOverlays();
+  });
+  doc.toggleSyllable.addEventListener('change', (e) => {
+    appState.overlays.syllable = e.target.checked;
+    applyContentOverlays();
+  });
+  doc.togglePhonicsVowels.addEventListener('change', (e) => {
+    appState.overlays.phonicsVowels = e.target.checked;
+    applyContentOverlays();
+  });
+  doc.togglePhonicsDigraphs.addEventListener('change', (e) => {
+    appState.overlays.phonicsDigraphs = e.target.checked;
+    applyContentOverlays();
+  });
+  doc.toggleMorpheme.addEventListener('change', (e) => {
+    appState.overlays.morpheme = e.target.checked;
+    applyContentOverlays();
+  });
+
+  // Irlen overlay
+  doc.toggleIrlen.addEventListener('change', (e) => {
+    doc.irlenControls.style.display = e.target.checked ? 'block' : 'none';
+    doc.irlenOverlay.style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.checked) updateIrlenOverlay();
+  });
+  doc.irlenColor.addEventListener('input', updateIrlenOverlay);
+  doc.irlenOpacity.addEventListener('input', (e) => {
+    doc.irlenOpacityValue.textContent = `${e.target.value}%`;
+    updateIrlenOverlay();
+  });
+
+  // Reading flow
+  doc.toggleFocusMode.addEventListener('change', (e) => {
+    appState.focusMode = e.target.checked;
+    doc.readerWorkspace.classList.toggle('focus-mode-active', e.target.checked);
+  });
+  doc.toggleProgressive.addEventListener('change', (e) => {
+    appState.progressiveReveal = e.target.checked;
+    if (appState.parsedData) {
+      if (e.target.checked) initProgressiveReveal();
+      else endProgressiveReveal();
     }
   });
-
-  doc.toggleBionic.addEventListener('change', (e) => {
-    applyBionicFormatting(e.target.checked);
+  doc.autopauseSlider.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    doc.autopauseValue.textContent = val === 0 ? 'Off' : `${val}s`;
   });
 
-  // Reading Ruler cursor-follow mechanics
+  // Scroll — save position & update progress bar
+  doc.scrollContainer.addEventListener('scroll', () => {
+    appState.savedScrollTop = doc.scrollContainer.scrollTop;
+    updateProgressFromScroll();
+  });
+
+  // Ruler follow cursor
   doc.scrollContainer.addEventListener('mousemove', (e) => {
     if (!appState.rulerActive) return;
     const rect = doc.scrollContainer.getBoundingClientRect();
     const relativeY = e.clientY - rect.top + doc.scrollContainer.scrollTop;
-    const rulerHeight = parseInt(doc.rulerHeight.value);
-    
-    // Position ruler element inside coordinates relative to the text body container
-    doc.readerRuler.style.top = `${relativeY - (rulerHeight / 2)}px`;
+    const rulerH = parseInt(doc.rulerHeight.value);
+    doc.readerRuler.style.top = `${relativeY - (rulerH / 2)}px`;
   });
 
-  // Ingestion: Demo Curriculum Dropdown selection
+  // Demo dropdown
   doc.demoSelect.addEventListener('change', (e) => {
     const key = e.target.value;
     if (DEMO_MATERIALS[key]) {
       const material = DEMO_MATERIALS[key];
       doc.textInput.value = material.text;
       appState.subject = material.subject;
-      
-      // Update badge tag
       doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${material.subject}`;
-
-      // Reset PDF document variables
       appState.pdfDoc = null;
       doc.btnViewPdf.disabled = true;
       switchLayoutView('reflowed');
     }
   });
 
-  // Ingestion: Browse file button click handler
+  // File ingestion
   doc.btnBrowseFile.addEventListener('click', () => doc.fileInput.click());
-  
-  // Ingestion: Drag/Drop visual feedback hooks
-  doc.dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    doc.dropzone.classList.add('dragover');
-  });
-  
-  doc.dropzone.addEventListener('dragleave', () => {
-    doc.dropzone.classList.remove('dragover');
-  });
-  
+  doc.dropzone.addEventListener('dragover', (e) => { e.preventDefault(); doc.dropzone.classList.add('dragover'); });
+  doc.dropzone.addEventListener('dragleave', () => doc.dropzone.classList.remove('dragover'));
   doc.dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     doc.dropzone.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleIngestedFile(files[0]);
-    }
+    if (e.dataTransfer.files.length > 0) handleIngestedFile(e.dataTransfer.files[0]);
   });
-
   doc.fileInput.addEventListener('change', (e) => {
-    const files = e.target.files;
-    if (files.length > 0) {
-      handleIngestedFile(files[0]);
-    }
+    if (e.target.files.length > 0) handleIngestedFile(e.target.files[0]);
   });
 
-  // Ingestion: Adapt text loading triggers
   doc.btnLoadText.addEventListener('click', () => {
     const text = doc.textInput.value.trim();
-    if (!text) {
-      alert('Please paste some text, load a demo, or drag a document file to adapt.');
-      return;
-    }
-    loadTextIntoReader(text);
+    if (!text) { showToast('Please paste some text, load a demo, or drag a document to adapt.', 'info'); return; }
+    beginReadingSession(text);
   });
 
-  // Reader Toolbar Navigation
-  doc.btnBackUpload.addEventListener('click', () => {
+  // Back button
+  doc.btnBackUpload.addEventListener('click', async () => {
+    await endReadingSession(true);
     TTS.stop();
     resetSpeechButtons();
     doc.panelReader.style.display = 'none';
     doc.panelUpload.style.display = 'block';
     doc.readerWorkspace.classList.add('show-upload');
-    
-    // Reset PDF document layouts
+    appState.savedScrollTop = 0;
     appState.pdfDoc = null;
     doc.btnViewPdf.disabled = true;
     doc.pdfCanvasContainer.innerHTML = '';
+    doc.btnCheckUnderstanding.style.display = 'none';
+    doc.progressWrapper.style.display = 'none';
+    endProgressiveReveal();
     switchLayoutView('reflowed');
   });
 
-  // Synchronized TTS triggers
+  // TTS controls
   doc.btnPlay.addEventListener('click', handleSpeechPlay);
   doc.btnPause.addEventListener('click', handleSpeechPause);
   doc.btnStop.addEventListener('click', handleSpeechStop);
   doc.voiceSpeed.addEventListener('input', (e) => {
     doc.voiceSpeedVal.textContent = `${e.target.value}x`;
     Tracker.logReadingSpeed(e.target.value);
-    
-    // If speaking, restart live audio using current speed settings
-    if (appState.isPlaying && !appState.isPaused) {
-      handleSpeechPlay();
-    }
+    updateReadingTimeEstimate();
+    if (appState.isPlaying && !appState.isPaused) handleSpeechPlay(appState.activeWordIdx);
   });
 
-  // Clicking single words inside reader content
+  // Word clicks in reader
   doc.readerContent.addEventListener('click', (e) => {
     const target = e.target.closest('.word');
     if (target) {
       const wordText = target.getAttribute('data-clean-word');
-      const wordIdx = parseInt(target.getAttribute('data-word-idx'));
-      
-      // Speak the selected word immediately
       speakSingleWord(wordText);
-      
-      // Trigger Decoder API details
-      openWordDecoder(wordText, wordIdx);
+      openWordDecoder(wordText);
+      Tracker.logWordDifficulty(wordText, appState.subject, 'click');
     }
-
-    // Handle paragraph-level simplify trigger buttons
     const simplifyBtn = e.target.closest('.para-action-btn');
     if (simplifyBtn) {
       const paraIdx = parseInt(simplifyBtn.getAttribute('data-para-idx'));
       const paragraphs = doc.readerContent.querySelectorAll('.reader-para');
       if (paragraphs[paraIdx]) {
-        // Strip out actions button content from the HTML representation to get clean text
-        const paraText = Array.from(paragraphs[paraIdx].querySelectorAll('.word'))
-          .map(el => el.textContent)
-          .join(' ');
-        
+        const paraText = Array.from(paragraphs[paraIdx].querySelectorAll('.word')).map(el => el.getAttribute('data-clean-word')).join(' ');
         openTextSimplifier(paraText, paraIdx);
       }
     }
   });
 
-  // Highlight/selection text simplification support
+  // Highlight selection simplify
   doc.readerContent.addEventListener('mouseup', () => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
@@ -419,53 +567,192 @@ function initEventListeners() {
     }
   });
 
-  // Word Decoder pronounce button
+  // AI panel buttons
   doc.btnSpeakTarget.addEventListener('click', () => {
-    if (doc.targetWord.textContent) {
-      speakSingleWord(doc.targetWord.textContent);
-    }
+    if (doc.targetWord.textContent) speakSingleWord(doc.targetWord.textContent);
   });
-
-  // Text Simplifier: Replace inside Reader view
+  doc.btnSaveGlossary.addEventListener('click', () => saveCurrentWordToGlossary());
   doc.btnReplaceOriginal.addEventListener('click', () => {
     if (lastSimplifiedParagraphIdx !== -1 && doc.simplifiedResult.textContent) {
       replaceParagraphWithSimplified(lastSimplifiedParagraphIdx, doc.simplifiedResult.textContent);
     }
   });
 
-  // Teacher Digest Dashboard
+  // Comprehension check
+  doc.btnCheckUnderstanding.addEventListener('click', openComprehensionCheck);
+
+  // Glossary modal
+  doc.btnGlossary.addEventListener('click', () => renderGlossaryModal());
+  doc.glossaryCloseBtn.addEventListener('click', () => { doc.glossaryModal.style.display = 'none'; });
+  doc.glossaryClearBtn.addEventListener('click', () => {
+    showConfirm('Clear your entire word glossary? This cannot be undone.', () => {
+      localStorage.removeItem('readem_word_glossary');
+      appState.lastDecodedWordData = null;
+      showToast('Glossary cleared.', 'success');
+      doc.glossaryModal.style.display = 'none';
+    });
+  });
+
+  // Vocab modal
+  doc.vocabSkipBtn.addEventListener('click', () => {
+    doc.vocabModal.style.display = 'none';
+    if (appState.pendingPreteachText) {
+      loadTextIntoReader(appState.pendingPreteachText);
+      appState.pendingPreteachText = null;
+    }
+  });
+  doc.vocabStartBtn.addEventListener('click', () => {
+    doc.vocabModal.style.display = 'none';
+    if (appState.pendingPreteachText) {
+      loadTextIntoReader(appState.pendingPreteachText);
+      appState.pendingPreteachText = null;
+    }
+  });
+
+  // Comprehension modal
+  doc.comprehensionCloseBtn.addEventListener('click', () => { doc.comprehensionModal.style.display = 'none'; });
+
+  // Text input → live stats
+  doc.textInput.addEventListener('input', () => {
+    const text = doc.textInput.value.trim();
+    if (text) {
+      doc.textStatsRow.style.display = 'flex';
+      updateTextStats(text);
+    } else {
+      doc.textStatsRow.style.display = 'none';
+    }
+  });
+
+  // Quick presets
+  doc.presetDyslexia.addEventListener('click', () => applyPreset('dyslexia'));
+  doc.presetFocus.addEventListener('click', () => applyPreset('focus'));
+  doc.presetPhonics.addEventListener('click', () => applyPreset('phonics'));
+  doc.presetReset.addEventListener('click', () => applyPreset('reset'));
+
+  // Session history — delegated click on reload buttons
+  doc.sessionHistoryList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.session-reload-btn');
+    if (btn) {
+      const idx = parseInt(btn.getAttribute('data-idx'));
+      const sessions = JSON.parse(localStorage.getItem('readem_session_history') || '[]');
+      if (sessions[idx]) {
+        doc.textInput.value = sessions[idx].fullText;
+        appState.subject = sessions[idx].subject;
+        doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${sessions[idx].subject}`;
+        doc.textStatsRow.style.display = 'flex';
+        updateTextStats(sessions[idx].fullText);
+        showToast('Previous session reloaded.', 'success');
+      }
+    }
+  });
+  doc.btnClearHistory.addEventListener('click', () => {
+    showConfirm('Clear your session history?', () => {
+      localStorage.removeItem('readem_session_history');
+      doc.sessionHistorySection.style.display = 'none';
+      showToast('Session history cleared.', 'success');
+    });
+  });
+
+  // Onboarding wizard
+  doc.btnSkipOnboard.addEventListener('click', () => {
+    localStorage.setItem('readem_onboarded', '1');
+    doc.onboardingModal.style.display = 'none';
+  });
+  doc.onboardNext1.addEventListener('click', () => {
+    doc.onboardStep1.style.display = 'none';
+    doc.onboardStep2.style.display = 'flex';
+  });
+  doc.onboardNext2.addEventListener('click', () => {
+    doc.onboardStep2.style.display = 'none';
+    doc.onboardStep3.style.display = 'flex';
+  });
+  doc.onboardFinish.addEventListener('click', () => {
+    applyOnboardingSettings();
+    localStorage.setItem('readem_onboarded', '1');
+    doc.onboardingModal.style.display = 'none';
+    showToast('Settings applied. Happy reading!', 'success');
+  });
+  document.querySelectorAll('.font-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.font-pick-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.subject-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.subject-pick-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.difficulty-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.difficulty-pick-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Shortcut help modal
+  doc.btnShortcutHelp.addEventListener('click', () => { doc.shortcutHelpModal.style.display = 'flex'; });
+  doc.shortcutCloseBtn.addEventListener('click', () => { doc.shortcutHelpModal.style.display = 'none'; });
+
+  // Plans modal
+  doc.btnPlans.addEventListener('click', () => { doc.plansModal.style.display = 'flex'; });
+  doc.plansCloseBtn.addEventListener('click', () => { doc.plansModal.style.display = 'none'; });
+
+  // Session summary modal
+  doc.sessionSummaryCloseBtn.addEventListener('click', () => { doc.sessionSummaryModal.style.display = 'none'; });
+
+  // Oral fluency assessment
+  doc.btnStartAssess.addEventListener('click', startOralAssessment);
+  doc.btnStopAssess.addEventListener('click', stopOralAssessment);
+
+  // Language bridge — delegate clicks on all .lang-btn elements
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.lang-btn');
+    if (btn) setLanguageBridge(btn.getAttribute('data-lang') || '');
+  });
+
+  // Comprehension done button
+  doc.comprehensionDoneBtn.addEventListener('click', () => {
+    const sessionId = doc.comprehensionDoneBtn.getAttribute('data-session-id') || appState.sessionId;
+    const total = parseInt(doc.comprehensionDoneBtn.getAttribute('data-total') || '0');
+    const answered = doc.comprehensionBody.querySelectorAll('.comprehension-answer-btn.answered').length;
+    Tracker.logComprehensionCompleted(sessionId, appState.subject, answered, total);
+    doc.comprehensionModal.style.display = 'none';
+    showToast('Great work checking your understanding!', 'success');
+  });
+
+  // Teacher dashboard
   doc.btnRefreshDigest.addEventListener('click', refreshTeacherDigest);
-  doc.btnClearDigest.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to reset all logged telemetry charts and difficulty lists?')) {
+  doc.btnClearDigest.addEventListener('click', () => {
+    showConfirm('Reset all logged telemetry? This cannot be undone.', async () => {
       await Tracker.clearLogs();
       refreshTeacherDigest();
-    }
+      showToast('All telemetry cleared.', 'success');
+    });
   });
   doc.btnExportDigest.addEventListener('click', async () => {
     const reportText = await Tracker.exportDigestReport();
-
-    // Create text file download stream
     const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Read'Em_Weekly_Literacy_Digest_${new Date().toISOString().split('T')[0]}.txt`;
+    link.download = `ReadEm_Weekly_Literacy_Digest_${new Date().toISOString().split('T')[0]}.txt`;
     link.click();
   });
 }
 
 /* ==================== WORKSPACE NAVIGATION ==================== */
 function switchRole(role) {
-  // Hide landing portal
   doc.viewLandingPortal.classList.remove('active');
   doc.readerWorkspace.classList.remove('active');
   doc.teacherWorkspace.classList.remove('active');
-
-  // Show header logout button
   doc.btnLogout.style.display = 'block';
-
   if (role === 'reader') {
     doc.readerWorkspace.classList.add('active');
     appState.role = 'reader';
+    checkOnboarding();
+    checkFirstLogin();
+    doc.btnPlans.style.display = 'inline-flex';
   } else if (role === 'teacher') {
     doc.teacherWorkspace.classList.add('active');
     appState.role = 'teacher';
@@ -485,24 +772,16 @@ function setAuthMode(mode) {
 async function handleAuthSubmit() {
   const email = doc.authEmail.value.trim();
   const password = doc.authPassword.value;
-
-  if (!email || !password) {
-    showAuthError('Please enter both an email and password.');
-    return;
-  }
-
+  if (!email || !password) { showAuthError('Please enter both an email and password.'); return; }
   doc.btnAuthSubmit.disabled = true;
   doc.authError.style.display = 'none';
-
   try {
     if (authMode === 'signup') {
-      const role = doc.authRoleSelect.value;
-      await Auth.signUp(email, password, role);
+      await Auth.signUp(email, password, doc.authRoleSelect.value);
     } else {
       await Auth.signIn(email, password);
     }
     doc.authPassword.value = '';
-    // Auth.onAuthChange listener handles routing into the correct workspace.
   } catch (err) {
     showAuthError(describeAuthError(err));
   } finally {
@@ -529,214 +808,413 @@ function showLandingPortal() {
   doc.readerWorkspace.classList.remove('active');
   doc.teacherWorkspace.classList.remove('active');
   doc.btnLogout.style.display = 'none';
+  doc.btnPlans.style.display = 'none';
   doc.viewLandingPortal.classList.add('active');
   appState.role = null;
 }
 
 function logOut() {
   Auth.signOut();
-  // Auth.onAuthChange listener calls showLandingPortal() once sign-out completes.
 }
 
 function switchLayoutView(view) {
   doc.btnViewReflowed.classList.remove('active');
   doc.btnViewPdf.classList.remove('active');
-
   if (view === 'reflowed') {
     doc.btnViewReflowed.classList.add('active');
     doc.readerContent.style.display = 'block';
     doc.pdfCanvasContainer.style.display = 'none';
-    
-    // Show visual aid ruler if active
-    if (appState.rulerActive) {
-      doc.readerRuler.style.display = 'block';
-    }
+    if (appState.rulerActive) doc.readerRuler.style.display = 'block';
   } else if (view === 'pdf') {
     doc.btnViewPdf.classList.add('active');
     doc.readerContent.style.display = 'none';
     doc.pdfCanvasContainer.style.display = 'flex';
-    doc.readerRuler.style.display = 'none'; // hide ruler in raw PDF layout
-    
-    // Trigger PDF rendering if not already rendered
-    if (appState.pdfDoc) {
-      renderPDFCanvasPages(appState.pdfDoc);
-    }
+    doc.readerRuler.style.display = 'none';
+    if (appState.pdfDoc) renderPDFCanvasPages(appState.pdfDoc);
   }
 }
 
 async function renderPDFCanvasPages(pdf) {
   doc.pdfCanvasContainer.innerHTML = '<span style="color:var(--text-muted)"><i class="fa-solid fa-spinner fa-spin"></i> Rendering original PDF pages...</span>';
-  
   try {
     doc.pdfCanvasContainer.innerHTML = '';
-    
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      
       const canvas = document.createElement('canvas');
       canvas.className = 'pdf-page-card';
       doc.pdfCanvasContainer.appendChild(canvas);
-      
       const context = canvas.getContext('2d');
-      const viewport = page.getViewport({ scale: 1.5 }); // High-DPI scale render
-      
+      const viewport = page.getViewport({ scale: 1.5 });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-      
-      await page.render(renderContext).promise;
+      await page.render({ canvasContext: context, viewport }).promise;
     }
   } catch (err) {
     console.error('PDF rendering failed:', err);
-    doc.pdfCanvasContainer.innerHTML = `<span style="color:var(--color-danger)">Failed to render original PDF: ${err.message}</span>`;
+    doc.pdfCanvasContainer.innerHTML = `<span style="color:var(--color-danger)">Failed to render PDF: ${err.message}</span>`;
   }
 }
 
-/* ==================== DOCUMENT INGESTION LOGIC ==================== */
+/* ==================== DOCUMENT INGESTION ==================== */
 async function handleIngestedFile(file) {
-  // Update UI loading states inside the dropzone
   const oldText = doc.dropzone.innerHTML;
-  doc.dropzone.innerHTML = `
-    <i class="fa-solid fa-circle-notch fa-spin dropzone-icon"></i>
-    <p>Ingesting <strong>${file.name}</strong>...</p>
-    <span>Extracting raw content automatically</span>
-  `;
-  
+  doc.dropzone.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin dropzone-icon"></i><p>Ingesting <strong>${file.name}</strong>...</p><span>Extracting content</span>`;
   try {
     let rawContent = '';
-    
-    // Deduce subject from file name hints
-    if (file.name.toLowerCase().includes('math')) {
-      appState.subject = 'Mathematics';
-    } else if (file.name.toLowerCase().includes('sci') || file.name.toLowerCase().includes('bio')) {
-      appState.subject = 'Science';
-    } else if (file.name.toLowerCase().includes('hist') || file.name.toLowerCase().includes('roman')) {
-      appState.subject = 'History';
-    } else {
-      appState.subject = 'General';
-    }
-    
+    const name = file.name.toLowerCase();
+    if (name.includes('math') || name.includes('psle-math')) appState.subject = 'Mathematics';
+    else if (name.includes('sci') || name.includes('bio') || name.includes('psle-sci')) appState.subject = 'Science';
+    else if (name.includes('hist') || name.includes('roman')) appState.subject = 'History';
+    else if (name.includes('lit') || name.includes('english') || name.includes('psle-eng')) appState.subject = 'Literature';
+    else appState.subject = 'General';
     doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${appState.subject}`;
 
-    // Deduce file type
     if (file.name.endsWith('.pdf')) {
       rawContent = await extractTextFromPDF(file);
-      
-      // Load PDF document for original layout canvas rendering
       const reader = new FileReader();
-      reader.onload = async function (e) {
-        const typedarray = new Uint8Array(e.target.result);
+      reader.onload = async (e) => {
         try {
-          appState.pdfDoc = await window.pdfjsLib.getDocument({ data: typedarray }).promise;
+          appState.pdfDoc = await window.pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
           doc.btnViewPdf.disabled = false;
-        } catch (err) {
-          console.error('Failed to load PDF doc for rendering:', err);
-        }
+        } catch (err) { console.error('PDF doc load failed:', err); }
       };
       reader.readAsArrayBuffer(file);
-    } else {
+    } else if (file.name.endsWith('.txt')) {
       appState.pdfDoc = null;
       doc.btnViewPdf.disabled = true;
-      
-      if (file.name.endsWith('.txt')) {
-        rawContent = await readTextFile(file);
-      } else if (file.type.startsWith('image/')) {
-        // OCR vision ingestion!
-        if (!AIService.hasKeys()) {
-          throw new Error('An OpenAI API Key is required to perform OCR image transcription. Please add your key in the settings drawer.');
-        }
-        rawContent = await AIService.transcribeImage(file);
-      } else {
-        throw new Error('Unsupported format. Please upload PDF, TXT or worksheet image.');
-      }
+      rawContent = await readTextFile(file);
+    } else if (file.type.startsWith('image/')) {
+      appState.pdfDoc = null;
+      doc.btnViewPdf.disabled = true;
+      if (!AIService.hasKeys()) throw new Error('An OpenAI API Key is required for image OCR. Add your key in settings.');
+      rawContent = await AIService.transcribeImage(file);
+    } else {
+      throw new Error('Unsupported format. Please upload PDF, TXT or an image.');
     }
-
     doc.textInput.value = rawContent;
-    loadTextIntoReader(rawContent);
+    beginReadingSession(rawContent);
   } catch (err) {
-    alert(err.message);
+    showToast(err.message, 'error');
   } finally {
     doc.dropzone.innerHTML = oldText;
   }
 }
 
-// Convert plain text, construct interactive DOM spans, and boot up the reading dashboard
+// Entry point: show vocab pre-teaching modal, then load reader
+async function beginReadingSession(text) {
+  saveSessionToHistory(text, appState.subject);
+  appState.pendingPreteachText = text;
+  doc.vocabModal.style.display = 'flex';
+  doc.vocabWordList.innerHTML = '<div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Identifying key vocabulary...</div>';
+
+  try {
+    const vocabWords = await AIService.extractVocabWords(text, appState.subject, 6);
+    if (vocabWords.length === 0) {
+      doc.vocabWordList.innerHTML = '<div class="vocab-empty">No complex vocabulary found — this passage uses everyday language. You are ready to read!</div>';
+    } else {
+      doc.vocabWordList.innerHTML = vocabWords.map(v => `
+        <div class="vocab-word-item">
+          <div class="vocab-word-heading"><h4>${v.word}</h4></div>
+          <div class="vocab-syllable-chips">${(v.syllables || []).map(s => `<span>${s}</span>`).join('')}</div>
+          <div class="vocab-phonetics">${v.phonetics || ''}</div>
+          <div class="vocab-definition">${v.definition || ''}</div>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    doc.vocabWordList.innerHTML = '<div class="vocab-empty">Could not load vocabulary preview. Click Start Reading to continue.</div>';
+  }
+}
+
 function loadTextIntoReader(text) {
   appState.rawText = text;
-  
-  // Format into word boundaries
   appState.parsedData = TTS.parseText(text);
-  
-  // Populate reader DOM
   doc.readerContent.innerHTML = appState.parsedData.html;
-  
-  // Sync metadata
   doc.readerSubject.textContent = appState.subject;
-  
-  // Set formatting states
+
+  // Reset all overlay toggles & states
   doc.toggleChunking.checked = false;
+  doc.toggleLineFocus.checked = false;
   doc.toggleBionic.checked = false;
-  doc.readerContent.className = 'font-lexend'; // Reset bionic formats
-  
+  doc.toggleSyllable.checked = false;
+  doc.togglePhonicsVowels.checked = false;
+  doc.togglePhonicsDigraphs.checked = false;
+  doc.toggleMorpheme.checked = false;
+  doc.bionicRatioRow.style.display = 'none';
+  doc.readerContent.className = 'font-lexend';
+  appState.overlays = { syllable: false, phonicsVowels: false, phonicsDigraphs: false, morpheme: false, bionic: false, bionicRatio: 0.45 };
+  appState.progressiveReveal = false;
+  doc.toggleProgressive.checked = false;
+
   doc.panelUpload.style.display = 'none';
   doc.panelReader.style.display = 'block';
   doc.readerWorkspace.classList.remove('show-upload');
-  
-  // Close any old AI panel states
+
+  // Show progress bar with reading time estimate
+  doc.progressWrapper.style.display = 'flex';
+  updateReadingTimeEstimate();
+
+  // Show comprehension button
+  doc.btnCheckUnderstanding.style.display = 'inline-flex';
+
+  requestAnimationFrame(() => {
+    doc.scrollContainer.scrollTop = appState.savedScrollTop || 0;
+  });
+
   doc.aiDictContent.style.display = 'none';
   doc.aiDictEmpty.style.display = 'block';
   doc.aiSimplifierContent.style.display = 'none';
   doc.aiSimplifierEmpty.style.display = 'block';
+  doc.fluencyResult.style.display = 'none';
+  doc.wordTranslation.style.display = 'none';
+
+  startReadingSession();
+
+  // Non-blocking: pre-flag hard words using Huawei NLP after render
+  preflightHardWords(text);
 }
 
-/* ==================== FORMATTING LOGIC ==================== */
+/* ==================== PHONICS / OVERLAY RENDERING ==================== */
+
+function syllabifyWord(word) {
+  if (word.length <= 3) return word;
+  const VOWELS = 'aeiouyAEIOUY';
+  const isVowel = c => VOWELS.includes(c);
+  const dots = new Set();
+  let i = 0;
+
+  while (i < word.length) {
+    while (i < word.length && !isVowel(word[i])) i++;
+    if (i >= word.length) break;
+    while (i < word.length && isVowel(word[i])) i++;
+    const cStart = i;
+    while (i < word.length && !isVowel(word[i])) i++;
+    const cEnd = i;
+    if (i >= word.length) break;
+    const n = cEnd - cStart;
+    if (n === 0) continue;
+    dots.add(n === 1 ? cStart : cStart + 1);
+  }
+
+  let result = '';
+  for (let j = 0; j < word.length; j++) {
+    if (dots.has(j)) result += '·';
+    result += word[j];
+  }
+  return result;
+}
+
+function buildWordInnerHTML(cleanWord, overlays) {
+  const { syllable, phonicsVowels, phonicsDigraphs, morpheme, bionic, bionicRatio } = overlays;
+  if (!syllable && !phonicsVowels && !phonicsDigraphs && !morpheme && !bionic) return cleanWord;
+
+  const lower = cleanWord.toLowerCase();
+  const len = cleanWord.length;
+
+  // Syllable dot positions (in cleanWord index space)
+  const syllablePositions = new Set();
+  if (syllable) {
+    const syl = syllabifyWord(cleanWord);
+    let cp = 0;
+    for (let j = 0; j < syl.length; j++) {
+      if (syl[j] === '·') syllablePositions.add(cp);
+      else cp++;
+    }
+  }
+
+  // Morpheme boundaries
+  let prefixEnd = 0, suffixStart = len;
+  if (morpheme) {
+    for (const p of PREFIX_TABLE) {
+      if (lower.startsWith(p) && len > p.length + 2 && p.length > prefixEnd) prefixEnd = p.length;
+    }
+    for (const s of SUFFIX_TABLE) {
+      if (lower.endsWith(s) && len > s.length + 2) {
+        const c = len - s.length;
+        if (c > prefixEnd && c < suffixStart) suffixStart = c;
+      }
+    }
+  }
+
+  const bionicSplit = bionic ? Math.max(1, Math.ceil(len * (bionicRatio || 0.45))) : -1;
+
+  let html = '';
+  let i = 0;
+
+  while (i < len) {
+    if (syllablePositions.has(i)) html += '<span class="syl-dot">·</span>';
+
+    const pair = i + 1 < len ? lower[i] + lower[i + 1] : '';
+    const isConsonantDigraph = phonicsDigraphs && DIGRAPH_SET.has(pair);
+    const isVowelDigraph = phonicsVowels && VOWEL_DIGRAPH_SET.has(pair);
+    const charCount = (isConsonantDigraph || isVowelDigraph) ? 2 : 1;
+    const chars = cleanWord.slice(i, i + charCount);
+
+    const classes = [];
+    if (bionic && i < bionicSplit) classes.push('bionic-bold');
+    if (isConsonantDigraph) classes.push('phonics-digraph');
+    else if (isVowelDigraph) classes.push('phonics-vowel-digraph');
+    else if (phonicsVowels && SIMPLE_VOWELS.has(lower[i])) classes.push('phonics-vowel');
+
+    if (morpheme) {
+      if (prefixEnd > 0 && i < prefixEnd) classes.push('morpheme-prefix');
+      else if (suffixStart < len && i >= suffixStart) classes.push('morpheme-suffix');
+      else if (prefixEnd > 0 || suffixStart < len) classes.push('morpheme-root');
+    }
+
+    if (classes.length > 0) {
+      const tag = classes.includes('bionic-bold') ? 'strong' : 'span';
+      html += `<${tag} class="${classes.join(' ')}">${chars}</${tag}>`;
+    } else {
+      html += chars;
+    }
+    i += charCount;
+  }
+  return html;
+}
+
+function applyContentOverlays() {
+  if (!appState.parsedData) return;
+  const words = doc.readerContent.querySelectorAll('.word');
+  words.forEach(span => {
+    const clean = span.getAttribute('data-clean-word');
+    if (clean) span.innerHTML = buildWordInnerHTML(clean, appState.overlays);
+  });
+}
+
+/* ==================== IRLEN OVERLAY ==================== */
+function updateIrlenOverlay() {
+  const hex = doc.irlenColor.value;
+  const opacity = parseInt(doc.irlenOpacity.value) / 100;
+  doc.irlenOpacityValue.textContent = `${doc.irlenOpacity.value}%`;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  doc.irlenOverlay.style.backgroundColor = `rgba(${r},${g},${b},${opacity})`;
+}
+
+/* ==================== READING PROGRESS ==================== */
+function updateReadingTimeEstimate() {
+  if (!appState.parsedData) return;
+  const wordCount = appState.parsedData.ranges.length;
+  const speed = parseFloat(doc.voiceSpeed.value);
+  const wpm = Math.round(200 * speed);
+  const minutes = Math.ceil(wordCount / wpm);
+  doc.progressTime.innerHTML = `<i class="fa-regular fa-clock"></i> ~${minutes} min read`;
+}
+
+function updateProgressFromScroll() {
+  const el = doc.scrollContainer;
+  const scrollable = el.scrollHeight - el.clientHeight;
+  if (scrollable <= 0) return;
+  const pct = Math.round((el.scrollTop / scrollable) * 100);
+  doc.progressFill.style.width = `${pct}%`;
+}
+
+function updateProgressFromWord(wordIdx) {
+  if (!appState.parsedData) return;
+  const total = appState.parsedData.ranges.length;
+  if (total <= 0) return;
+  const pct = Math.round((wordIdx / total) * 100);
+  doc.progressFill.style.width = `${pct}%`;
+}
+
+/* ==================== TYPOGRAPHY STYLES ==================== */
 function applyTypographyStyles() {
   document.documentElement.style.setProperty('--user-font-size', `${doc.fontSize.value}px`);
   document.documentElement.style.setProperty('--user-line-height', doc.lineHeight.value);
   document.documentElement.style.setProperty('--user-letter-spacing', `${doc.letterSpacing.value}em`);
   document.documentElement.style.setProperty('--user-word-spacing', `${doc.wordSpacing.value}em`);
-  
-  // Clear font family selection classes
   doc.readerContent.classList.remove('font-lexend', 'font-opendyslexic', 'font-inter', 'font-system');
   doc.readerContent.classList.add(doc.fontFamily.value);
 }
 
-// Parse first letters of word elements to bold them
-function applyBionicFormatting(active) {
-  const words = doc.readerContent.querySelectorAll('.word');
-  
-  words.forEach(wordSpan => {
-    if (active) {
-      // Check if already formatted
-      if (!wordSpan.hasAttribute('data-original-text')) {
-        const text = wordSpan.textContent.trim();
-        wordSpan.setAttribute('data-original-text', text);
-        
-        // Calculate fixation split (45%)
-        const splitLen = Math.max(1, Math.ceil(text.length * 0.45));
-        const boldPart = text.substring(0, splitLen);
-        const lightPart = text.substring(splitLen);
-        
-        wordSpan.innerHTML = `<strong class="bionic-bold">${boldPart}</strong><span class="bionic-light">${lightPart}</span>`;
-      }
-    } else {
-      if (wordSpan.hasAttribute('data-original-text')) {
-        wordSpan.innerHTML = wordSpan.getAttribute('data-original-text');
-        wordSpan.removeAttribute('data-original-text');
-      }
-    }
+/* ==================== PROGRESSIVE REVEAL ==================== */
+function initProgressiveReveal() {
+  const paras = doc.readerContent.querySelectorAll('.reader-para');
+  if (paras.length === 0) return;
+  appState.progressiveIdx = 0;
+  paras.forEach((p, idx) => {
+    p.classList.remove('para-current', 'para-hidden');
+    if (idx > 0) p.classList.add('para-hidden');
+    else p.classList.add('para-current');
+    // Remove any existing self-assess rows
+    const old = p.nextElementSibling;
+    if (old && old.classList.contains('self-assess-row')) old.remove();
   });
+  showProgressiveNextBar(paras.length > 1);
 }
 
-/* ==================== SPEECH CONTROLLER LOGIC ==================== */
-function handleSpeechPlay() {
+function endProgressiveReveal() {
+  const paras = doc.readerContent.querySelectorAll('.reader-para');
+  paras.forEach(p => p.classList.remove('para-hidden', 'para-current'));
+  const bar = doc.readerContent.querySelector('.progressive-next-bar');
+  if (bar) bar.remove();
+  const rows = doc.readerContent.querySelectorAll('.self-assess-row');
+  rows.forEach(r => r.remove());
+}
+
+function showProgressiveNextBar(hasMore) {
+  const existing = doc.readerContent.querySelector('.progressive-next-bar');
+  if (existing) existing.remove();
+  if (!hasMore) return;
+  const bar = document.createElement('div');
+  bar.className = 'progressive-next-bar';
+  bar.innerHTML = '<button class="progressive-next-btn"><i class="fa-solid fa-arrow-down"></i> Next Paragraph</button>';
+  bar.querySelector('button').addEventListener('click', progressiveNextParagraph);
+  doc.readerContent.appendChild(bar);
+}
+
+function progressiveNextParagraph() {
+  const paras = doc.readerContent.querySelectorAll('.reader-para');
+  const currentPara = paras[appState.progressiveIdx];
+
+  // Show self-assessment on current paragraph
+  showSelfAssessment(currentPara, appState.progressiveIdx);
+
+  appState.progressiveIdx++;
+  if (appState.progressiveIdx < paras.length) {
+    currentPara.classList.remove('para-current');
+    const next = paras[appState.progressiveIdx];
+    next.classList.remove('para-hidden');
+    next.classList.add('para-current');
+    next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showProgressiveNextBar(appState.progressiveIdx < paras.length - 1);
+  } else {
+    currentPara.classList.remove('para-current');
+    showProgressiveNextBar(false);
+    showToast('You have finished reading! Check your understanding below.', 'success');
+  }
+}
+
+function showSelfAssessment(paraEl, paraIdx) {
+  const existing = paraEl.nextElementSibling;
+  if (existing && existing.classList.contains('self-assess-row')) return;
+
+  const row = document.createElement('div');
+  row.className = 'self-assess-row';
+  row.innerHTML = `
+    <span>How did this paragraph feel?</span>
+    <button class="assess-btn assess-got-it" data-rating="got-it" data-para="${paraIdx}">✓ Got it</button>
+    <button class="assess-btn assess-sort-of" data-rating="sort-of" data-para="${paraIdx}">~ Sort of</button>
+    <button class="assess-btn assess-lost-me" data-rating="lost-me" data-para="${paraIdx}">✕ Lost me</button>
+  `;
+  row.querySelectorAll('.assess-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      row.querySelectorAll('.assess-btn').forEach(b => b.classList.remove('selected'));
+      e.target.classList.add('selected');
+      const rating = e.target.getAttribute('data-rating');
+      Tracker.logWordDifficulty(`para-${paraIdx}-${appState.subject}`, appState.subject, rating === 'lost-me' ? 'define' : 'click');
+    });
+  });
+  paraEl.insertAdjacentElement('afterend', row);
+}
+
+/* ==================== SPEECH CONTROLLER ==================== */
+function handleSpeechPlay(startFromWordIdx = 0) {
   if (!appState.parsedData) return;
-  
-  if (appState.isPaused) {
+
+  if (appState.isPaused && startFromWordIdx === 0) {
     TTS.resume();
     appState.isPaused = false;
     toggleSpeechButtons(true);
@@ -745,6 +1223,7 @@ function handleSpeechPlay() {
 
   const rate = parseFloat(doc.voiceSpeed.value);
   const voiceName = doc.voiceSelect.value;
+  const autoPauseMs = parseInt(doc.autopauseSlider.value) * 1000;
 
   appState.isPlaying = true;
   appState.isPaused = false;
@@ -752,14 +1231,22 @@ function handleSpeechPlay() {
 
   TTS.speak(
     appState.parsedData,
-    { voiceName, rate },
+    {
+      voiceName, rate, startFromWordIdx,
+      onSentenceBoundary: autoPauseMs > 0 ? () => {
+        TTS.pause();
+        setTimeout(() => {
+          if (appState.isPlaying && !appState.isPaused) TTS.resume();
+        }, autoPauseMs);
+      } : undefined,
+    },
     (wordIdx) => {
-      // Word Highlight boundary sync event
       highlightWordInReader(wordIdx);
+      updateProgressFromWord(wordIdx);
     },
     () => {
-      // End of speech callback
       resetSpeechButtons();
+      endReadingSession(false);
     }
   );
 }
@@ -780,129 +1267,773 @@ function speakSingleWord(word) {
 }
 
 function highlightWordInReader(wordIdx) {
-  // Clean last highlighted span
-  const oldHigh = doc.readerContent.querySelector('.word.highlighted');
-  if (oldHigh) oldHigh.classList.remove('highlighted');
-  
-  const targetSpan = document.getElementById(`word-${wordIdx}`);
-  if (targetSpan) {
-    targetSpan.classList.add('highlighted');
+  const old = doc.readerContent.querySelector('.word.highlighted');
+  if (old) old.classList.remove('highlighted');
+  const target = document.getElementById(`word-${wordIdx}`);
+  if (target) {
+    target.classList.add('highlighted');
     appState.activeWordIdx = wordIdx;
-
-    // Automatically center text scrolling if line moves out of focus view
-    targetSpan.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
 
 function toggleSpeechButtons(playing) {
-  if (playing) {
-    doc.btnPlay.style.display = 'none';
-    doc.btnPause.style.display = 'inline-flex';
-  } else {
-    doc.btnPlay.style.display = 'inline-flex';
-    doc.btnPause.style.display = 'none';
-  }
+  doc.btnPlay.style.display = playing ? 'none' : 'inline-flex';
+  doc.btnPause.style.display = playing ? 'inline-flex' : 'none';
 }
 
 function resetSpeechButtons() {
   doc.btnPlay.style.display = 'inline-flex';
   doc.btnPause.style.display = 'none';
-  
   appState.isPlaying = false;
   appState.isPaused = false;
-  
   const highlighted = doc.readerContent.querySelector('.word.highlighted');
   if (highlighted) highlighted.classList.remove('highlighted');
 }
 
-/* ==================== AI DECODER PANEL (RIGHT DRAWER) ==================== */
-async function openWordDecoder(wordText, wordIdx) {
-  // Open loading layout
+/* ==================== AI DECODER PANEL ==================== */
+async function openWordDecoder(wordText) {
+  appState.sessionWordDecodes++;
   doc.aiDictEmpty.style.display = 'none';
   doc.aiDictContent.style.display = 'block';
-  
   doc.targetWord.textContent = wordText;
   doc.syllablesChunked.innerHTML = `<span><i class="fa-solid fa-spinner fa-spin"></i> Breaking syllables...</span>`;
   doc.phoneticGuide.innerHTML = `<i>Pronouncing...</i>`;
   doc.wordDefinition.innerHTML = `<span style="color:var(--text-muted)">Querying dictionary...</span>`;
-  doc.conceptAnalogy.innerHTML = `<span style="color:var(--text-muted)">Generating simple analogy...</span>`;
+  doc.conceptAnalogy.innerHTML = `<span style="color:var(--text-muted)">Generating analogy...</span>`;
+  doc.btnSaveGlossary.classList.remove('saved');
+  doc.btnSaveGlossary.innerHTML = `<i class="fa-solid fa-bookmark"></i> Save`;
+
+  // Check if already saved
+  const glossary = JSON.parse(localStorage.getItem('readem_word_glossary') || '[]');
+  if (glossary.find(g => g.word === wordText.toLowerCase())) {
+    doc.btnSaveGlossary.classList.add('saved');
+    doc.btnSaveGlossary.innerHTML = `<i class="fa-solid fa-bookmark"></i> Saved`;
+  }
 
   try {
     const data = await AIService.decodeWord(wordText, appState.subject);
+    appState.lastDecodedWordData = { word: wordText, ...data };
 
-    // Syllables Chips
     doc.syllablesChunked.innerHTML = data.syllables.map(s => `<span>${s}</span>`).join('');
-
-    // Phonetics
     doc.phoneticGuide.textContent = data.phonetics;
-
-    // Definition
     doc.wordDefinition.textContent = data.definition;
-
-    // Concept Analogy
     doc.conceptAnalogy.textContent = data.analogy;
 
-    // Telemetry log details
     Tracker.logWordDifficulty(wordText, appState.subject, 'define');
     Tracker.logWordDifficulty(wordText, appState.subject, 'syllabify');
+
+    // Mother-tongue bridge: auto-translate if a language is selected
+    if (appState.bridgeLang) translateCurrentWord(wordText, data.definition);
   } catch (err) {
-    doc.wordDefinition.textContent = 'Could not retrieve definition details.';
-    doc.conceptAnalogy.textContent = 'Analogy lookup error occurred.';
+    doc.wordDefinition.textContent = 'Could not retrieve definition.';
+    doc.conceptAnalogy.textContent = 'Analogy lookup failed.';
   }
 }
 
 async function openTextSimplifier(paraText, paraIdx) {
+  appState.sessionSimplifications++;
   doc.aiSimplifierEmpty.style.display = 'none';
   doc.aiSimplifierContent.style.display = 'block';
   doc.btnReplaceOriginal.disabled = true;
-
   doc.simplifiedOriginal.textContent = `"${paraText.substring(0, 100)}..."`;
-  doc.simplifiedResult.innerHTML = `<span><i class="fa-solid fa-circle-notch fa-spin"></i> Rewriting complex sentences... preserving subject terminology...</span>`;
-
+  doc.simplifiedResult.innerHTML = `<span><i class="fa-solid fa-circle-notch fa-spin"></i> Rewriting...</span>`;
   lastSimplifiedParagraphIdx = paraIdx;
 
   try {
-    const simplifiedText = await AIService.simplifyParagraph(paraText, appState.subject);
-    
-    doc.simplifiedResult.textContent = simplifiedText;
+    const simplified = await AIService.simplifyParagraph(paraText, appState.subject);
+    doc.simplifiedResult.textContent = simplified;
     doc.btnReplaceOriginal.disabled = false;
-    
-    // Passive telemetry log
-    Tracker.logSentenceSimplification(paraText, simplifiedText, appState.subject);
+    Tracker.logSentenceSimplification(paraText, simplified, appState.subject);
   } catch (err) {
     doc.simplifiedResult.textContent = `Simplification failed: ${err.message}`;
   }
 }
 
-// Replace paragraph content with simplified text
 function replaceParagraphWithSimplified(paraIdx, newText) {
   const paragraphs = doc.readerContent.querySelectorAll('.reader-para');
-  if (paragraphs[paraIdx]) {
-    // Rebuild the full document text with this paragraph swapped in, then
-    // re-parse it as one unit so word IDs stay globally unique and
-    // appState.parsedData (what Play actually reads) matches the new DOM.
-    const fullText = Array.from(paragraphs).map((p, idx) => {
-      if (idx === paraIdx) return newText;
-      return Array.from(p.querySelectorAll('.word')).map(el => el.textContent).join(' ');
-    }).join('\n\n');
+  if (!paragraphs[paraIdx]) return;
+  const fullText = Array.from(paragraphs).map((p, idx) => {
+    if (idx === paraIdx) return newText;
+    return Array.from(p.querySelectorAll('.word')).map(el => el.getAttribute('data-clean-word') || el.textContent).join(' ');
+  }).join('\n\n');
 
-    appState.rawText = fullText;
-    appState.parsedData = TTS.parseText(fullText);
-    doc.readerContent.innerHTML = appState.parsedData.html;
+  appState.rawText = fullText;
+  appState.parsedData = TTS.parseText(fullText);
+  doc.readerContent.innerHTML = appState.parsedData.html;
+  applyContentOverlays();
+  applyTypographyStyles();
+  showToast('Paragraph replaced with simplified version.', 'success');
+}
 
-    // Reapply bionic mapping if active
-    if (doc.toggleBionic.checked) {
-      applyBionicFormatting(true);
-    }
+/* ==================== WORD GLOSSARY ==================== */
+function loadGlossaryFromStorage() {
+  // Pre-load glossary count — used when rendering
+}
 
-    // Reapply font adjustments
-    applyTypographyStyles();
+function saveCurrentWordToGlossary() {
+  if (!appState.lastDecodedWordData) return;
+  const { word } = appState.lastDecodedWordData;
+  const glossary = JSON.parse(localStorage.getItem('readem_word_glossary') || '[]');
+  if (glossary.find(g => g.word === word.toLowerCase())) {
+    showToast(`"${word}" is already in your glossary.`, 'info');
+    return;
+  }
+  glossary.push({ ...appState.lastDecodedWordData, word: word.toLowerCase(), savedAt: new Date().toISOString() });
+  localStorage.setItem('readem_word_glossary', JSON.stringify(glossary));
+  doc.btnSaveGlossary.classList.add('saved');
+  doc.btnSaveGlossary.innerHTML = `<i class="fa-solid fa-bookmark"></i> Saved`;
+  showToast(`"${word}" saved to your glossary.`, 'success');
+}
 
-    alert('Paragraph replaced inline with simplified structure!');
+function renderGlossaryModal() {
+  const glossary = JSON.parse(localStorage.getItem('readem_word_glossary') || '[]');
+  if (glossary.length === 0) {
+    doc.glossaryBody.innerHTML = `<p class="table-empty" style="padding: 32px;">No words saved yet. Click any word while reading, then tap Save.</p>`;
+  } else {
+    doc.glossaryBody.innerHTML = glossary.slice().reverse().map(entry => `
+      <div class="glossary-item">
+        <span class="glossary-word">${entry.word}</span>
+        <span class="glossary-phonetics">${entry.phonetics || ''}</span>
+        <span class="glossary-definition">${entry.definition || ''}</span>
+      </div>
+    `).join('');
+  }
+  doc.glossaryModal.style.display = 'flex';
+}
+
+/* ==================== COMPREHENSION CHECK ==================== */
+async function openComprehensionCheck() {
+  const snapSessionId = appState.sessionId || `session-${Date.now()}`;
+  doc.comprehensionModal.style.display = 'flex';
+  doc.comprehensionBody.innerHTML = '<div class="vocab-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Generating questions...</div>';
+  doc.comprehensionDoneBtn.style.display = 'none';
+  doc.comprehensionAnswerCount.textContent = '';
+
+  try {
+    const questions = await AIService.generateComprehensionQuestions(appState.rawText, appState.subject);
+    const total = questions.length;
+    let answeredCount = 0;
+
+    const updateCount = () => {
+      answeredCount++;
+      doc.comprehensionAnswerCount.textContent = `${answeredCount} / ${total} answered`;
+      if (answeredCount >= total) doc.comprehensionDoneBtn.style.display = 'inline-flex';
+    };
+
+    doc.comprehensionBody.innerHTML = questions.map((q, i) => `
+      <div class="comprehension-question-item" data-q-idx="${i}">
+        <div class="comprehension-q-num">Question ${i + 1}</div>
+        <div class="comprehension-q-text">${q.q}</div>
+        <div class="comprehension-hint"><i class="fa-solid fa-lightbulb"></i>&nbsp;Hint: ${q.hint}</div>
+        <button class="comprehension-answer-btn" data-q-idx="${i}"><i class="fa-solid fa-check"></i> Got it</button>
+      </div>
+    `).join('');
+
+    doc.comprehensionBody.querySelectorAll('.comprehension-answer-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!btn.classList.contains('answered')) {
+          btn.classList.add('answered');
+          btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Done';
+          updateCount();
+        }
+      });
+    });
+
+    doc.comprehensionDoneBtn.setAttribute('data-session-id', snapSessionId);
+    doc.comprehensionDoneBtn.setAttribute('data-total', total);
+    if (total > 0) doc.comprehensionAnswerCount.textContent = `0 / ${total} answered`;
+  } catch (e) {
+    doc.comprehensionBody.innerHTML = '<div class="vocab-empty">Could not generate questions. Try again.</div>';
   }
 }
 
-/* ==================== TEACHER VIEW UPDATES ==================== */
+/* ==================== PROVIDER BADGE ==================== */
+function updateProviderBadge() {
+  if (!doc.providerPill) return;
+  if (AIService.isUsingHuawei()) {
+    doc.providerPill.textContent = 'Huawei Cloud';
+    doc.providerPill.classList.add('provider-huawei');
+  } else {
+    doc.providerPill.textContent = 'OpenAI';
+    doc.providerPill.classList.remove('provider-huawei');
+  }
+}
+
+/* ==================== AI STATUS BADGE ==================== */
+function updateAIStatusBadge() {
+  if (!doc.aiStatusBadge) return;
+  const hasAI = AIService.hasKeys();
+  doc.aiStatusBadge.textContent = hasAI ? 'AI Active' : 'Offline Mode';
+  doc.aiStatusBadge.className = `ai-status-badge ${hasAI ? 'ai-status-active' : 'ai-status-offline'}`;
+}
+
+/* ==================== ORAL FLUENCY ASSESSMENT (Huawei SIS) ==================== */
+
+// Minimal PCM recorder using Web Audio API — produces 16kHz mono PCM
+// which Huawei SIS accepts directly as pcm16k16bit, avoiding browser MIME issues.
+class PcmRecorder {
+  constructor() { this.ctx = null; this.processor = null; this.stream = null; this.chunks = []; }
+  async start() {
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+    this.ctx = new AudioContext({ sampleRate: 16000 });
+    const src = this.ctx.createMediaStreamSource(this.stream);
+    // ScriptProcessor is deprecated but universally supported — sufficient for demo
+    this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+    this.chunks = [];
+    this.processor.onaudioprocess = e => {
+      const f32 = e.inputBuffer.getChannelData(0);
+      const i16 = new Int16Array(f32.length);
+      for (let i = 0; i < f32.length; i++) i16[i] = Math.max(-32768, Math.min(32767, Math.round(f32[i] * 32767)));
+      this.chunks.push(i16);
+    };
+    src.connect(this.processor);
+    this.processor.connect(this.ctx.destination);
+  }
+  stop() {
+    this.processor?.disconnect();
+    this.ctx?.close();
+    this.stream?.getTracks().forEach(t => t.stop());
+    const total = this.chunks.reduce((s, c) => s + c.length, 0);
+    const out = new Int16Array(total);
+    let off = 0;
+    for (const c of this.chunks) { out.set(c, off); off += c.length; }
+    this.chunks = [];
+    return out;
+  }
+  static toBase64(i16) {
+    const u8 = new Uint8Array(i16.buffer);
+    let s = '';
+    // Process in chunks to avoid call stack overflow on large buffers
+    const CHUNK = 8192;
+    for (let i = 0; i < u8.length; i += CHUNK) {
+      s += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+    }
+    return btoa(s);
+  }
+}
+
+async function startOralAssessment() {
+  if (!appState.parsedData) { showToast('Load a passage first before starting the fluency check.', 'info'); return; }
+  try {
+    appState.pcmRecorder = new PcmRecorder();
+    await appState.pcmRecorder.start();
+    appState.assessmentMode = true;
+    appState.assessmentStartTime = Date.now();
+    doc.btnStartAssess.style.display = 'none';
+    doc.btnStopAssess.style.display = 'inline-flex';
+    showToast('Recording started — read the passage aloud, then click Stop & Score.', 'info', 6000);
+  } catch (err) {
+    appState.pcmRecorder = null;
+    showToast('Microphone access denied. Enable mic permissions to use Read Aloud Check.', 'error');
+  }
+}
+
+async function stopOralAssessment() {
+  if (!appState.pcmRecorder || !appState.assessmentMode) return;
+  const durationMs = Date.now() - (appState.assessmentStartTime || Date.now());
+
+  doc.btnStopAssess.disabled = true;
+  doc.btnStopAssess.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Scoring...';
+
+  try {
+    const pcmData = appState.pcmRecorder.stop();
+    appState.pcmRecorder = null;
+    const audioBase64 = PcmRecorder.toBase64(pcmData);
+
+    const transcript = await AIService.transcribeAudio(audioBase64, 'pcm16k16bit');
+    const { accuracy, misread, totalWords } = computeFluencyScore(transcript, appState.rawText);
+    const wpm = durationMs > 5000 ? Math.round((totalWords / (durationMs / 60000))) : 0;
+
+    markFluencyResults(new Set(misread));
+
+    const accuracyClass = accuracy >= 90 ? 'fluency-accuracy-high' : 'fluency-accuracy-low';
+    doc.fluencyResult.style.display = 'flex';
+    doc.fluencyResult.innerHTML = `
+      <div class="fluency-score-row">
+        <span class="fluency-stat ${accuracyClass}"><strong>${accuracy}%</strong> accuracy</span>
+        ${wpm > 0 ? `<span class="fluency-stat"><strong>${wpm}</strong> WPM</span>` : ''}
+        <span class="fluency-stat"><strong>${misread.length}</strong> word${misread.length !== 1 ? 's' : ''} missed</span>
+        ${misread.length > 0 ? `<span class="fluency-stat" style="font-size:0.78rem; color:var(--text-muted);">Missed: ${misread.slice(0, 6).join(', ')}${misread.length > 6 ? '…' : ''}</span>` : ''}
+        <button id="fluency-clear-btn" class="secondary-btn btn-sm" style="margin-left:auto;"><i class="fa-solid fa-xmark"></i> Clear</button>
+      </div>
+    `;
+    document.getElementById('fluency-clear-btn')?.addEventListener('click', () => {
+      doc.fluencyResult.style.display = 'none';
+      clearFluencyMarks();
+    });
+
+    showToast(`Fluency scored: ${accuracy}% accuracy${wpm > 0 ? `, ${wpm} WPM` : ''}.`, accuracy >= 90 ? 'success' : 'info');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    appState.assessmentMode = false;
+    appState.assessmentStartTime = null;
+    doc.btnStartAssess.style.display = 'inline-flex';
+    doc.btnStopAssess.style.display = 'none';
+    doc.btnStopAssess.disabled = false;
+    doc.btnStopAssess.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> Stop &amp; Score';
+  }
+}
+
+function computeFluencyScore(transcript, originalText) {
+  const normalize = s => s.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/).filter(Boolean);
+  const origWords = normalize(originalText);
+  const readSet = new Set(normalize(transcript));
+  // Words not spoken (or misread) — only flag substantive words (len ≥ 3)
+  const misread = origWords.filter(w => w.length >= 3 && !readSet.has(w));
+  const correct = origWords.length - misread.length;
+  const accuracy = origWords.length > 0 ? Math.round((correct / origWords.length) * 100) : 100;
+  return { accuracy, misread: [...new Set(misread)], totalWords: origWords.length };
+}
+
+function markFluencyResults(misreadSet) {
+  doc.readerContent.querySelectorAll('.word').forEach(span => {
+    const clean = (span.getAttribute('data-clean-word') || '').toLowerCase();
+    span.classList.remove('word-misread', 'word-read-correct');
+    if (clean.length < 3) return;
+    span.classList.add(misreadSet.has(clean) ? 'word-misread' : 'word-read-correct');
+  });
+}
+
+function clearFluencyMarks() {
+  doc.readerContent.querySelectorAll('.word').forEach(s => s.classList.remove('word-misread', 'word-read-correct'));
+}
+
+/* ==================== HARD WORD PRE-FLAGGING (Huawei NLP Keywords) ==================== */
+async function preflightHardWords(text) {
+  try {
+    const hardWords = await AIService.extractHardWords(text, appState.subject);
+    if (!hardWords || hardWords.length === 0) return;
+    const hardSet = new Set(hardWords.map(w => w.toLowerCase()));
+    doc.readerContent.querySelectorAll('.word').forEach(span => {
+      const clean = (span.getAttribute('data-clean-word') || '').toLowerCase();
+      if (hardSet.has(clean)) span.classList.add('word-preflagged');
+    });
+  } catch (e) { /* silent — non-blocking */ }
+}
+
+/* ==================== MOTHER-TONGUE BRIDGE (Huawei MT) ==================== */
+function setLanguageBridge(lang) {
+  appState.bridgeLang = lang;
+  localStorage.setItem('readem_bridge_lang', lang);
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+  });
+  if (lang && doc.targetWord.textContent && doc.aiDictContent.style.display !== 'none') {
+    translateCurrentWord(doc.targetWord.textContent, doc.wordDefinition.textContent);
+  } else {
+    doc.wordTranslation.style.display = 'none';
+  }
+}
+
+async function translateCurrentWord(word, definition) {
+  if (!appState.bridgeLang || !word) return;
+  const textToTranslate = definition ? `${word}: ${definition}` : word;
+  doc.wordTranslation.style.display = 'block';
+  doc.wordTranslation.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Translating...';
+
+  const langNames = { zh: '中文 (Mandarin)', ms: 'Melayu', ta: 'தமிழ் (Tamil)' };
+  const translation = await AIService.translateWord(textToTranslate, appState.bridgeLang);
+
+  if (translation) {
+    doc.wordTranslation.innerHTML = `
+      <span class="translation-label">${langNames[appState.bridgeLang] || appState.bridgeLang}</span>
+      <span class="translation-text">${translation}</span>
+    `;
+  } else {
+    doc.wordTranslation.innerHTML = `<span style="color:var(--text-muted);font-size:0.78rem;">Mother-tongue translation requires Huawei Cloud proxy. <a href="#" style="color:var(--primary-color);" onclick="return false;">Configure it</a> to enable.</span>`;
+  }
+}
+
+/* ==================== SESSION TRACKING ==================== */
+function generateSessionId() {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function startReadingSession() {
+  appState.sessionId = generateSessionId();
+  appState.sessionStartTime = Date.now();
+  appState.sessionWordDecodes = 0;
+  appState.sessionSimplifications = 0;
+}
+
+async function endReadingSession(showSummary) {
+  if (!appState.sessionId || !appState.sessionStartTime) return;
+  const durationMs = Date.now() - appState.sessionStartTime;
+  const wordCount = appState.parsedData ? appState.parsedData.ranges.length : 0;
+  // Only compute wpm for sessions that lasted at least 10s and had words
+  const wpm = (durationMs > 10000 && wordCount > 0) ? Math.round(wordCount / (durationMs / 60000)) : 0;
+
+  const data = {
+    sessionId: appState.sessionId,
+    subject: appState.subject,
+    passagePreview: appState.rawText,
+    wordsRead: wordCount,
+    wordsDecoded: appState.sessionWordDecodes,
+    durationMs,
+    simplifications: appState.sessionSimplifications,
+    readingSpeedWpm: wpm,
+    comprehensionCompleted: false,
+  };
+
+  await Tracker.logSessionSummary(data);
+
+  if (showSummary && durationMs > 8000) {
+    showSessionSummary(data);
+  }
+
+  appState.sessionId = null;
+  appState.sessionStartTime = null;
+  appState.sessionWordDecodes = 0;
+  appState.sessionSimplifications = 0;
+}
+
+function showSessionSummary(data) {
+  const minutes = Math.floor(data.durationMs / 60000);
+  const seconds = Math.floor((data.durationMs % 60000) / 1000);
+  const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  const decodeRate = data.wordsRead > 0 ? Math.round((data.wordsDecoded / data.wordsRead) * 100) : 0;
+
+  doc.sessionSummaryBody.innerHTML = `
+    <p style="color:var(--text-muted); margin-bottom:14px; font-size:0.9rem;">Here is what happened this session.</p>
+    <div class="session-summary-grid">
+      <div class="session-summary-stat">
+        <span class="stat-num">${data.wordsRead}</span>
+        <span class="stat-label">Words Read</span>
+      </div>
+      <div class="session-summary-stat">
+        <span class="stat-num">${durationText}</span>
+        <span class="stat-label">Time Spent</span>
+      </div>
+      <div class="session-summary-stat">
+        <span class="stat-num">${data.wordsDecoded}</span>
+        <span class="stat-label">Words Decoded</span>
+      </div>
+      <div class="session-summary-stat">
+        <span class="stat-num">${data.simplifications}</span>
+        <span class="stat-label">Simplifications Used</span>
+      </div>
+    </div>
+    ${decodeRate > 0 ? `<p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px; text-align:center;">Decode rate this session: <strong>${decodeRate}%</strong></p>` : ''}
+  `;
+  doc.sessionSummaryModal.style.display = 'flex';
+}
+
+/* ==================== FIRST LOGIN ==================== */
+function checkFirstLogin() {
+  const sessions = JSON.parse(localStorage.getItem('readem_session_history') || '[]');
+  if (sessions.length === 0 && !localStorage.getItem('readem_demo_loaded')) {
+    localStorage.setItem('readem_demo_loaded', '1');
+    const demo = DEMO_MATERIALS['sg-psle-science'];
+    doc.textInput.value = demo.text;
+    appState.subject = demo.subject;
+    doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${demo.subject}`;
+    doc.textStatsRow.style.display = 'flex';
+    updateTextStats(demo.text);
+  }
+}
+
+/* ==================== STUDENT PROGRESS SPARKLINES ==================== */
+function sparklineSvg(values, width, height) {
+  if (values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pad = 4;
+  const w = width - pad * 2;
+  const h = height - pad * 2;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * w;
+    const y = pad + h - ((v - min) / range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return `<svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><polyline points="${pts.join(' ')}"/><circle cx="${lx}" cy="${ly}" r="3"/></svg>`;
+}
+
+async function renderStudentProgress() {
+  const students = await Tracker.getStudentList();
+  if (students.length === 0) {
+    doc.studentProgressSection.style.display = 'none';
+    return;
+  }
+  doc.studentProgressSection.style.display = 'block';
+
+  const studentData = await Promise.all(
+    students.map(async s => {
+      const progress = await Tracker.getStudentProgress(s.uid);
+      const displayName = await Auth.getUserDisplayName(s.uid);
+      return { ...s, progress, displayName };
+    })
+  );
+
+  doc.studentProgressList.innerHTML = studentData.map(s => {
+    const wpmValues = s.progress.map(p => p.wpm).filter(v => v > 0);
+    const svgEl = wpmValues.length >= 2 ? sparklineSvg(wpmValues, 120, 36) : '';
+    const lastWpm = wpmValues.length > 0 ? wpmValues[wpmValues.length - 1] : 0;
+    return `
+      <div class="student-progress-item">
+        <span class="student-progress-label">${s.displayName}</span>
+        ${svgEl || '<span style="color:var(--text-muted);font-size:0.7rem;">Not enough data</span>'}
+        <span class="student-progress-meta">${lastWpm > 0 ? lastWpm + ' WPM' : '—'} &bull; ${s.sessionCount} session${s.sessionCount !== 1 ? 's' : ''}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ==================== ONBOARDING ==================== */
+function checkOnboarding() {
+  if (!localStorage.getItem('readem_onboarded')) {
+    doc.onboardingModal.style.display = 'flex';
+  }
+}
+
+function applyOnboardingSettings() {
+  const activeFont = doc.onboardStep1.querySelector('.font-pick-btn.active');
+  if (activeFont) {
+    doc.fontFamily.value = activeFont.getAttribute('data-font');
+    applyTypographyStyles();
+    applyContentOverlays();
+  }
+
+  const activeSubject = doc.onboardStep2.querySelector('.subject-pick-btn.active');
+  const subject = activeSubject ? activeSubject.getAttribute('data-subject') : 'General';
+  if (activeSubject) {
+    appState.subject = subject;
+    doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${subject}`;
+  }
+
+  const activeDiff = doc.onboardStep3.querySelector('.difficulty-pick-btn.active');
+  const difficulty = activeDiff ? activeDiff.getAttribute('data-level') : 'medium';
+
+  if (difficulty === 'hard') {
+    doc.fontSize.value = Math.min(parseInt(doc.fontSize.value) + 4, 36);
+    doc.fontSizeVal.textContent = `${doc.fontSize.value}px`;
+    applyTypographyStyles();
+  }
+
+  // Adult / work path: no phonics overlays, larger spacing
+  if (subject === 'Work') {
+    doc.lineHeight.value = 2.0; doc.lineHeightVal.textContent = '2.0';
+    doc.wordSpacing.value = 0.3; doc.wordSpacingVal.textContent = '0.3em';
+    applyTypographyStyles();
+  } else if (difficulty === 'hard') {
+    // School subject + hard difficulty → enable phonics to support decoding
+    applyPreset('phonics');
+  }
+}
+
+/* ==================== QUICK PRESETS ==================== */
+function applyPreset(name) {
+  switch (name) {
+    case 'dyslexia':
+      doc.fontFamily.value = 'font-opendyslexic';
+      doc.fontSize.value = 24; doc.fontSizeVal.textContent = '24px';
+      doc.lineHeight.value = 2.0; doc.lineHeightVal.textContent = '2.0';
+      doc.letterSpacing.value = 0.15; doc.letterSpacingVal.textContent = '0.15em';
+      doc.wordSpacing.value = 0.3; doc.wordSpacingVal.textContent = '0.3em';
+      doc.toggleBionic.checked = false; appState.overlays.bionic = false;
+      doc.bionicRatioRow.style.display = 'none';
+      doc.toggleIrlen.checked = true;
+      doc.irlenControls.style.display = 'block';
+      doc.irlenOverlay.style.display = 'block';
+      doc.irlenColor.value = '#ffeb99';
+      doc.irlenOpacity.value = 20; doc.irlenOpacityValue.textContent = '20%';
+      updateIrlenOverlay();
+      applyTypographyStyles();
+      applyContentOverlays();
+      showToast('Dyslexia Pack applied.', 'success');
+      break;
+    case 'focus':
+      doc.toggleLineFocus.checked = true;
+      doc.readerContent.classList.add('line-focus-active');
+      doc.toggleFocusMode.checked = true;
+      appState.focusMode = true;
+      doc.readerWorkspace.classList.add('focus-mode-active');
+      doc.toggleIrlen.checked = true;
+      doc.irlenControls.style.display = 'block';
+      doc.irlenOverlay.style.display = 'block';
+      doc.irlenColor.value = '#e0f0ff';
+      doc.irlenOpacity.value = 18; doc.irlenOpacityValue.textContent = '18%';
+      updateIrlenOverlay();
+      showToast('Focus Mode applied.', 'success');
+      break;
+    case 'phonics':
+      doc.toggleSyllable.checked = true;
+      doc.togglePhonicsVowels.checked = true;
+      doc.togglePhonicsDigraphs.checked = true;
+      doc.toggleMorpheme.checked = true;
+      appState.overlays.syllable = true;
+      appState.overlays.phonicsVowels = true;
+      appState.overlays.phonicsDigraphs = true;
+      appState.overlays.morpheme = true;
+      applyContentOverlays();
+      showToast('Phonics Mode applied.', 'success');
+      break;
+    case 'reset':
+      doc.fontFamily.value = 'font-lexend';
+      doc.fontSize.value = 22; doc.fontSizeVal.textContent = '22px';
+      doc.lineHeight.value = 1.8; doc.lineHeightVal.textContent = '1.8';
+      doc.letterSpacing.value = 0.12; doc.letterSpacingVal.textContent = '0.12em';
+      doc.wordSpacing.value = 0.25; doc.wordSpacingVal.textContent = '0.25em';
+      doc.toggleBionic.checked = false;
+      doc.toggleSyllable.checked = false;
+      doc.togglePhonicsVowels.checked = false;
+      doc.togglePhonicsDigraphs.checked = false;
+      doc.toggleMorpheme.checked = false;
+      doc.toggleLineFocus.checked = false;
+      doc.toggleFocusMode.checked = false;
+      doc.toggleIrlen.checked = false;
+      doc.irlenControls.style.display = 'none';
+      doc.irlenOverlay.style.display = 'none';
+      doc.toggleProgressive.checked = false;
+      doc.bionicRatioRow.style.display = 'none';
+      doc.readerContent.classList.remove('line-focus-active', 'show-chunking');
+      doc.readerWorkspace.classList.remove('focus-mode-active');
+      appState.overlays = { syllable: false, phonicsVowels: false, phonicsDigraphs: false, morpheme: false, bionic: false, bionicRatio: 0.45 };
+      appState.focusMode = false;
+      if (appState.progressiveReveal) { appState.progressiveReveal = false; endProgressiveReveal(); }
+      applyTypographyStyles();
+      applyContentOverlays();
+      showToast('All settings reset to defaults.', 'info');
+      break;
+  }
+}
+
+/* ==================== SESSION HISTORY ==================== */
+function saveSessionToHistory(text, subject) {
+  const sessions = JSON.parse(localStorage.getItem('readem_session_history') || '[]');
+  const preview = text.slice(0, 80).replace(/\s+/g, ' ').trim();
+  const wordCount = text.trim().split(/\s+/).length;
+  sessions.unshift({ preview, subject, wordCount, timestamp: new Date().toISOString(), fullText: text });
+  sessions.splice(5);
+  localStorage.setItem('readem_session_history', JSON.stringify(sessions));
+  renderSessionHistory();
+}
+
+function renderSessionHistory() {
+  const sessions = JSON.parse(localStorage.getItem('readem_session_history') || '[]');
+  if (sessions.length === 0) { doc.sessionHistorySection.style.display = 'none'; return; }
+  doc.sessionHistorySection.style.display = 'block';
+  doc.sessionHistoryList.innerHTML = sessions.map((s, idx) => `
+    <div class="session-card">
+      <div class="session-card-info">
+        <div class="session-preview">${s.preview}…</div>
+        <div class="session-meta">
+          <span class="session-subject">${s.subject}</span>
+          <span>${s.wordCount} words</span>
+          <span>${formatRelativeTime(s.timestamp)}</span>
+        </div>
+      </div>
+      <button class="session-reload-btn" data-idx="${idx}"><i class="fa-solid fa-rotate-right"></i> Load</button>
+    </div>
+  `).join('');
+}
+
+function formatRelativeTime(isoString) {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+/* ==================== TEXT DIFFICULTY & STATS ==================== */
+function classifyTextDifficulty(text) {
+  const words = text.trim().split(/\s+/).filter(w => /[a-z]/i.test(w));
+  if (words.length < 10) return 'Easy';
+  const hardWords = words.filter(w => w.replace(/[^a-z]/gi, '').length >= 7).length;
+  const ratio = hardWords / words.length;
+  if (ratio > 0.28) return 'Hard';
+  if (ratio > 0.14) return 'Medium';
+  return 'Easy';
+}
+
+function updateTextStats(text) {
+  const wordCount = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const minutes = Math.max(1, Math.ceil(wordCount / 200));
+  const difficulty = classifyTextDifficulty(text);
+  doc.wordCountDisplay.innerHTML = `<i class="fa-solid fa-font"></i> ${wordCount} words`;
+  doc.readingTimeBadge.innerHTML = `<i class="fa-regular fa-clock"></i> ~${minutes} min read`;
+  const classMap = { Easy: 'difficulty-low', Medium: 'difficulty-medium', Hard: 'difficulty-high' };
+  doc.textDifficultyBadge.textContent = difficulty;
+  doc.textDifficultyBadge.className = `difficulty-badge ${classMap[difficulty]}`;
+  doc.textDifficultyBadge.style.display = 'inline-block';
+}
+
+/* ==================== KEYBOARD NAVIGATION ==================== */
+function adjustFontSize(delta) {
+  const next = Math.max(14, Math.min(40, parseInt(doc.fontSize.value) + delta));
+  doc.fontSize.value = next;
+  doc.fontSizeVal.textContent = `${next}px`;
+  applyTypographyStyles();
+}
+
+function navigateWord(delta) {
+  if (!appState.parsedData) return;
+  const total = appState.parsedData.ranges.length;
+  if (total === 0) return;
+  const next = Math.max(0, Math.min(total - 1, appState.activeWordIdx + delta));
+  highlightWordInReader(next);
+  updateProgressFromWord(next);
+}
+
+function initKeyboardNav() {
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement.tagName;
+    const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    if (e.key === 'Escape') {
+      for (const modal of [doc.shortcutHelpModal, doc.comprehensionModal, doc.glossaryModal, doc.vocabModal, doc.onboardingModal, doc.plansModal, doc.sessionSummaryModal]) {
+        if (modal && modal.style.display !== 'none') { modal.style.display = 'none'; return; }
+      }
+      if (appState.isPlaying) { handleSpeechStop(); return; }
+    }
+
+    if (e.key === '?' && !inInput) {
+      e.preventDefault();
+      doc.shortcutHelpModal.style.display = 'flex';
+      return;
+    }
+
+    if (doc.panelReader.style.display === 'none' || appState.role !== 'reader' || inInput) return;
+
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        if (appState.isPlaying && !appState.isPaused) handleSpeechPause();
+        else if (appState.isPaused) { TTS.resume(); appState.isPaused = false; toggleSpeechButtons(true); }
+        else handleSpeechPlay();
+        break;
+      case 'ArrowRight': e.preventDefault(); navigateWord(1); break;
+      case 'ArrowLeft': e.preventDefault(); navigateWord(-1); break;
+      case 'Enter':
+        if (appState.activeWordIdx >= 0 && appState.parsedData) {
+          const range = appState.parsedData.ranges.find(r => r.index === appState.activeWordIdx);
+          if (range) openWordDecoder(range.word);
+        }
+        break;
+      case 'b': case 'B':
+        doc.toggleBionic.checked = !doc.toggleBionic.checked;
+        appState.overlays.bionic = doc.toggleBionic.checked;
+        doc.bionicRatioRow.style.display = doc.toggleBionic.checked ? 'block' : 'none';
+        applyContentOverlays();
+        break;
+      case 'f': case 'F':
+        doc.toggleFocusMode.checked = !doc.toggleFocusMode.checked;
+        appState.focusMode = doc.toggleFocusMode.checked;
+        doc.readerWorkspace.classList.toggle('focus-mode-active', appState.focusMode);
+        break;
+      case '+': case '=': e.preventDefault(); adjustFontSize(2); break;
+      case '-': case '_': e.preventDefault(); adjustFontSize(-2); break;
+    }
+  });
+}
+
+/* ==================== TEACHER VIEW ==================== */
 async function refreshTeacherDigest() {
   const [stats, words, sentences] = await Promise.all([
     Tracker.getStats(),
@@ -910,47 +2041,47 @@ async function refreshTeacherDigest() {
     Tracker.getSentenceDigest(),
   ]);
 
-  // Populate counters
   doc.statWordsCount.textContent = stats.totalStruggledWords;
   doc.statSimplifications.textContent = stats.totalSimplifications;
   doc.statAvgSpeed.textContent = stats.avgSpeed;
+  doc.statTotalSessions.textContent = stats.totalSessions;
+  doc.statAvgDecodeRate.textContent = stats.avgDecodeRate;
 
-  // Render Word list table
   if (words.length === 0) {
-    doc.struggledWordsTbody.innerHTML = `
-      <tr>
-        <td colspan="4" class="table-empty">No reading sessions recorded yet. Student struggles will show here.</td>
-      </tr>
-    `;
+    doc.struggledWordsTbody.innerHTML = `<tr><td colspan="5" class="table-empty">No reading sessions recorded yet. Student struggles will show here.</td></tr>`;
   } else {
-    doc.struggledWordsTbody.innerHTML = words.map(w => {
-      const badgeClass = `difficulty-${w.difficulty}`;
+    // Build uid → display name map
+    const nameMap = {};
+    for (const w of words) {
+      if (w.uid && !nameMap[w.uid]) {
+        nameMap[w.uid] = await Auth.getUserDisplayName(w.uid);
+      }
+    }
+    doc.struggledWordsTbody.innerHTML = words.map(w => `
+      <tr>
+        <td><strong>${w.word}</strong></td>
+        <td><span class="reader-mode-indicator">${w.subject}</span></td>
+        <td><span class="student-label">${nameMap[w.uid] || w.uid}</span></td>
+        <td>${w.actionsTriggered}</td>
+        <td><span class="difficulty-badge difficulty-${w.difficulty}">${w.difficulty}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  if (sentences.length === 0) {
+    doc.simplifiedSentencesList.innerHTML = `<p class="table-empty">No sentences simplified yet. Areas of reading fatigue will register here.</p>`;
+  } else {
+    doc.simplifiedSentencesList.innerHTML = sentences.map(s => {
+      const time = s.timestamp ? new Date(s.timestamp).toLocaleTimeString() : 'just now';
       return `
-        <tr>
-          <td><strong>${w.word}</strong></td>
-          <td><span class="reader-mode-indicator">${w.subject}</span></td>
-          <td>${w.actionsTriggered}</td>
-          <td><span class="difficulty-badge ${badgeClass}">${w.difficulty}</span></td>
-        </tr>
+        <div class="sentence-digest-item">
+          <div class="sentence-digest-original"><strong>Original:</strong> "${s.original}"</div>
+          <div class="sentence-digest-simplified"><strong>Simplified:</strong> "${s.simplified}"</div>
+          <div class="sentence-digest-meta"><i class="fa-solid fa-tag"></i> ${s.subject} &bull; <i class="fa-regular fa-clock"></i> ${time}</div>
+        </div>
       `;
     }).join('');
   }
 
-  // Render Sentences Simplified list
-  if (sentences.length === 0) {
-    doc.simplifiedSentencesList.innerHTML = `
-      <p class="table-empty">No sentences simplified yet. Areas of reading fatigue will register here.</p>
-    `;
-  } else {
-    doc.simplifiedSentencesList.innerHTML = sentences.map(s => {
-      const time = s.timestamp && s.timestamp.toDate ? s.timestamp.toDate().toLocaleTimeString() : 'just now';
-      return `
-      <div class="sentence-digest-item">
-        <div class="sentence-digest-original"><strong>Original textbook text:</strong> "${s.original}"</div>
-        <div class="sentence-digest-simplified"><strong>AI Simplified text:</strong> "${s.simplified}"</div>
-        <div class="sentence-digest-meta"><i class="fa-solid fa-tag"></i> ${s.subject} &bull; <i class="fa-regular fa-clock"></i> ${time}</div>
-      </div>
-    `;
-    }).join('');
-  }
+  renderStudentProgress();
 }

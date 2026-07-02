@@ -111,6 +111,12 @@ export const Auth = {
     return found ? found.role : null;
   },
 
+  async getUserDisplayName(uid) {
+    const users = getUsersFromStorage();
+    const found = Object.values(users).find(u => u.uid === uid);
+    return found ? (found.displayName || found.email.split('@')[0]) : uid;
+  },
+
   /**
    * Subscribe to auth state changes. Returns the unsubscribe function.
    */

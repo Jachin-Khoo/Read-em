@@ -6,6 +6,9 @@ const API_KEYS = {
   OPENAI: 'readem_openai_key',
   ELEVENLABS: 'readem_elevenlabs_key',
   ELEVENLABS_MODEL: 'readem_elevenlabs_model',
+  // Huawei Cloud proxy: browser calls this server URL, server signs and forwards to Huawei
+  HUAWEI_ENDPOINT: 'readem_huawei_endpoint',
+  HUAWEI_API_KEY:  'readem_huawei_api_key',
 };
 
 // --- MOCK DATABASE FOR SIMULATION & DEMO MODE ---
@@ -76,6 +79,56 @@ const MOCK_WORDS = {
     definition: 'A scientist who digs into the ground to find clues about how people lived long ago.',
     analogy: 'A real-life detective of ancient history, searching for buried treasure and bones.'
   },
+  // Singapore curriculum — Primary Science (water cycle)
+  evaporation: {
+    syllables: ['e', 'vap', 'o', 'ra', 'tion'],
+    phonetics: '/ ee-vap-uh-ray-shun /',
+    definition: 'The process where liquid water is heated and turns into invisible water vapour gas.',
+    analogy: 'Like a wet puddle disappearing on a sunny day — the water turns invisible and floats up into the sky.'
+  },
+  condensation: {
+    syllables: ['con', 'den', 'sa', 'tion'],
+    phonetics: '/ kon-den-say-shun /',
+    definition: 'When water vapour in the air cools down and turns back into tiny liquid water droplets.',
+    analogy: 'Like the cold drops forming on the outside of a cold drink bottle on a humid day.'
+  },
+  precipitation: {
+    syllables: ['pre', 'cip', 'i', 'ta', 'tion'],
+    phonetics: '/ preh-sip-ih-tay-shun /',
+    definition: 'Any water falling from clouds to the ground, such as rain or drizzle.',
+    analogy: 'Think of it as the sky returning borrowed water back to the Earth as rain.'
+  },
+  atmosphere: {
+    syllables: ['at', 'mos', 'phere'],
+    phonetics: '/ at-muh-sfeer /',
+    definition: 'The thick layer of air and gases that surrounds the Earth and protects it.',
+    analogy: 'Like a giant invisible blanket wrapping around the Earth, full of the air we breathe.'
+  },
+  // Singapore workplace / adult literacy
+  performance: {
+    syllables: ['per', 'for', 'mance'],
+    phonetics: '/ per-for-mans /',
+    definition: 'How well someone does their job or completes a task over a period of time.',
+    analogy: 'Like a score report card for your work, showing how well you played on the team.'
+  },
+  evaluation: {
+    syllables: ['e', 'val', 'u', 'a', 'tion'],
+    phonetics: '/ ee-val-yoo-ay-shun /',
+    definition: 'A careful assessment of how good something or someone is.',
+    analogy: 'Like a referee carefully checking if a goal was scored fairly during a match.'
+  },
+  increment: {
+    syllables: ['in', 'cre', 'ment'],
+    phonetics: '/ in-kruh-ment /',
+    definition: 'A small increase in pay given to an employee after a good performance review.',
+    analogy: 'Like levelling up in a game — each increment is a small reward for doing well.'
+  },
+  eligibility: {
+    syllables: ['el', 'i', 'gi', 'bil', 'i', 'ty'],
+    phonetics: '/ el-ih-jih-bil-ih-tee /',
+    definition: 'Whether a person meets the rules or requirements needed to receive something.',
+    analogy: 'Like checking if your score is high enough to enter the next round of a competition.'
+  },
   sherwood: {
     syllables: ['sher', 'wood'],
     phonetics: '/ shur-wood /',
@@ -114,6 +167,34 @@ const MOCK_SENTENCES = {
   // Literature
   "robin hood, a legendary outlaw of english folklore, resided in sherwood forest where he assembled a band of loyal companions known as the merry men": "Robin Hood was a legendary outlaw. He lived in Sherwood Forest in England. He gathered a band of loyal followers. People called them the Merry Men.",
   "he engaged in persistent conflict against the tyrannical sheriff of nottingham, executing a strategy of redistributing wealth by seizing assets from wealthy noblemen and donating them to destitute peasant families": "Robin Hood fought the greedy Sheriff. He took money from rich lords. He gave that money to poor families who had no food."
+};
+
+const MOCK_COMPREHENSION = {
+  Science: [
+    { q: "What process do green plants use to make their food?", hint: "Think about sunlight, water, and leaves." },
+    { q: "What are stomata, and what do they do for a plant?", hint: "Look for the part about leaves breathing." },
+    { q: "Name one product that plants make during photosynthesis.", hint: "The passage lists what comes out of the process." },
+  ],
+  Mathematics: [
+    { q: "What is a ratio, and how do you write one?", hint: "Think about how we compare two groups of objects." },
+    { q: "If you have 4 red blocks and 8 blue blocks, what is the simplest ratio of red to blue?", hint: "Divide both numbers by the same amount." },
+    { q: "What does the word \"equivalent\" mean in maths?", hint: "The passage explains this word with an example." },
+  ],
+  History: [
+    { q: "What did the Romans build to bring fresh water into their cities?", hint: "Think about the large stone structures over rivers." },
+    { q: "What two ingredients did Roman builders mix to make their special concrete?", hint: "One ingredient came from volcanoes." },
+    { q: "What type of scientist studies ancient structures to learn about old civilisations?", hint: "Think of the word for a history detective." },
+  ],
+  Literature: [
+    { q: "Where did Robin Hood live, and who were his companions?", hint: "Think about the famous forest in England." },
+    { q: "Why did Robin Hood take money from the rich?", hint: "Think about who he gave the money to." },
+    { q: "Who was Robin Hood's main enemy, and why did they conflict?", hint: "Think about the powerful person who ruled the area." },
+  ],
+  General: [
+    { q: "What is the main topic of this passage?", hint: "Think about what most of the text is about." },
+    { q: "What is one important fact you learned from this text?", hint: "Pick something that stood out to you." },
+    { q: "Can you explain one key word from the passage in your own words?", hint: "Choose a word you had to think about." },
+  ],
 };
 
 const MOCK_OFFLINE_ANALOGIES = {
@@ -164,17 +245,49 @@ export const AIService = {
     localStorage.setItem(API_KEYS.ELEVENLABS_MODEL, elevenlabsModel || 'eleven_turbo_v2_5');
   },
 
+  // Save Huawei Cloud proxy config (server URL + the shared API key for the proxy)
+  saveHuaweiConfig(endpoint, apiKey) {
+    localStorage.setItem(API_KEYS.HUAWEI_ENDPOINT, endpoint.trim());
+    localStorage.setItem(API_KEYS.HUAWEI_API_KEY, apiKey.trim());
+  },
+
   getKeys() {
     return {
       openai: localStorage.getItem(API_KEYS.OPENAI) || import.meta.env.VITE_OPENAI_API_KEY || '',
       elevenlabs: localStorage.getItem(API_KEYS.ELEVENLABS) || import.meta.env.VITE_ELEVENLABS_API_KEY || '',
       elevenlabsModel: localStorage.getItem(API_KEYS.ELEVENLABS_MODEL) || import.meta.env.VITE_ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5',
+      // Huawei: browser-side config pointing to the secure server proxy
+      huaweiEndpoint: localStorage.getItem(API_KEYS.HUAWEI_ENDPOINT) || import.meta.env.VITE_HUAWEI_ENDPOINT || '',
+      huaweiApiKey:   localStorage.getItem(API_KEYS.HUAWEI_API_KEY)  || import.meta.env.VITE_HUAWEI_API_KEY  || '',
     };
+  },
+
+  isUsingHuawei() {
+    const { huaweiEndpoint, huaweiApiKey } = this.getKeys();
+    return !!(huaweiEndpoint && huaweiApiKey);
+  },
+
+  // Internal: send a request to the Huawei proxy server
+  async _callHuaweiProxy(route, payload) {
+    const { huaweiEndpoint, huaweiApiKey } = this.getKeys();
+    const response = await fetch(`${huaweiEndpoint}/api/huawei/${route}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': huaweiApiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Huawei proxy error: ${response.status}`);
+    }
+    return response.json();
   },
 
   hasKeys() {
     const keys = this.getKeys();
-    return !!keys.openai || !!keys.elevenlabs;
+    return !!keys.openai || !!keys.elevenlabs || this.isUsingHuawei();
   },
 
   /**
@@ -182,8 +295,18 @@ export const AIService = {
    */
   async simplifyParagraph(text, subject = 'General') {
     const keys = this.getKeys();
-    
-    // Fallback: If no OpenAI key, check if text matches one of our demo text headers
+
+    // 1. Try Huawei NLP proxy first (when configured)
+    if (this.isUsingHuawei()) {
+      try {
+        const result = await this._callHuaweiProxy('nlp/simplify', { text, subject });
+        return result.simplified || result.text;
+      } catch (e) {
+        console.warn('[Huawei NLP] simplify failed, falling back:', e.message);
+      }
+    }
+
+    // 2. OpenAI fallback / demo mock fallback
     if (!keys.openai) {
       const cleanText = text.trim().toLowerCase().replace(/[^a-z0-9\s,.-]/g, '');
       
@@ -377,21 +500,132 @@ Response JSON structure:
   },
 
   /**
+   * Extract the most complex words from a passage for vocab pre-teaching.
+   * Returns array of {word, syllables, phonetics, definition, analogy}.
+   */
+  async extractVocabWords(text, subject = 'General', maxWords = 6) {
+    const STOP_WORDS = new Set(['the', 'is', 'are', 'was', 'were', 'have', 'has', 'had', 'that', 'this', 'these', 'those', 'from', 'with', 'into', 'about', 'through', 'which', 'their', 'there', 'they', 'them', 'then', 'than', 'what', 'when', 'where', 'while', 'also', 'both', 'each', 'more', 'other', 'same', 'such', 'some', 'most', 'very', 'just', 'only', 'over', 'even', 'like', 'well', 'back', 'after', 'first', 'last', 'long', 'little', 'right', 'high', 'every', 'near', 'between', 'would', 'could', 'should', 'being', 'been', 'will', 'called', 'known', 'used', 'made', 'make', 'take', 'taken', 'using', 'while', 'during', 'without', 'within', 'among', 'along', 'where', 'because', 'however', 'therefore', 'although', 'carbon', 'water', 'light', 'green', 'black', 'white', 'large', 'small', 'young', 'around', 'under', 'above', 'below', 'before', 'after', 'since']);
+    const words = [...new Set((text.match(/\b[a-zA-Z]{7,}\b/g) || []).map(w => w.toLowerCase()))];
+    const filtered = words.filter(w => !STOP_WORDS.has(w)).slice(0, maxWords);
+    const results = [];
+    for (const word of filtered) {
+      try {
+        const data = await this.decodeWord(word, subject);
+        results.push({ word, ...data });
+      } catch (e) { /* skip */ }
+    }
+    return results;
+  },
+
+  /**
+   * Generate 3 comprehension questions about the passage.
+   */
+  async generateComprehensionQuestions(text, subject = 'General') {
+    const keys = this.getKeys();
+    if (!keys.openai) {
+      return MOCK_COMPREHENSION[subject] || MOCK_COMPREHENSION.General;
+    }
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keys.openai}` },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: 'You are a literacy teacher writing reading comprehension questions for dyslexic students aged 8-15. Generate exactly 3 clear, simple, dyslexia-friendly questions with short hints. Return JSON: {"questions": [{"q": "...", "hint": "..."}, ...]}' },
+            { role: 'user', content: `Subject: ${subject}\n\nText:\n${text.substring(0, 1000)}` }
+          ]
+        })
+      });
+      if (!response.ok) throw new Error('API error');
+      const data = await response.json();
+      const parsed = JSON.parse(data.choices[0].message.content);
+      return parsed.questions || MOCK_COMPREHENSION[subject] || MOCK_COMPREHENSION.General;
+    } catch (e) {
+      return MOCK_COMPREHENSION[subject] || MOCK_COMPREHENSION.General;
+    }
+  },
+
+  /**
+   * Transcribes recorded PCM audio via Huawei SIS for oral reading fluency scoring.
+   * audioBase64: base64-encoded PCM16k16bit captured by the browser's PcmRecorder.
+   */
+  async transcribeAudio(audioBase64, format = 'pcm16k16bit') {
+    if (!this.isUsingHuawei()) {
+      throw new Error('Oral reading assessment requires the Huawei Cloud proxy. Configure it to enable this feature.');
+    }
+    const result = await this._callHuaweiProxy('asr', { audio: audioBase64, format });
+    return result.transcript || '';
+  },
+
+  /**
+   * Extracts domain-specific / complex vocabulary from a passage using Huawei NLP.
+   * Falls back to a word-length heuristic when Huawei is not configured.
+   * Returns string[].
+   */
+  async extractHardWords(text, subject = 'General') {
+    if (this.isUsingHuawei()) {
+      try {
+        const result = await this._callHuaweiProxy('nlp/keywords', { text, limit: 25 });
+        if (Array.isArray(result.keywords) && result.keywords.length > 0) {
+          return result.keywords;
+        }
+      } catch (e) {
+        console.warn('[Huawei NLP Keywords] falling back to heuristic:', e.message);
+      }
+    }
+    // Heuristic fallback: words ≥6 chars that are not very common function words
+    const COMMON = new Set(['about','after','again','against','because','before','between','could','during','every','first','found','going','large','learn','likely','never','other','place','provide','right','seems','since','small','sound','still','their','there','these','three','through','together','toward','under','until','using','water','where','while','world','would','write','years']);
+    const words = text.toLowerCase().match(/\b[a-z]{6,}\b/g) || [];
+    return [...new Set(words.filter(w => !COMMON.has(w)))].slice(0, 25);
+  },
+
+  /**
+   * Translates a word/phrase to a target language via Huawei NLP Machine Translation.
+   * targetLang: 'zh' (Mandarin) | 'ms' (Malay) | 'ta' (Tamil)
+   * Returns translated string, or null if Huawei is not configured.
+   */
+  async translateWord(text, targetLang) {
+    if (!text || !targetLang) return null;
+    if (!this.isUsingHuawei()) return null;
+    try {
+      const result = await this._callHuaweiProxy('nlp/translate', { text, from: 'en', to: targetLang });
+      return result.translation || null;
+    } catch (e) {
+      console.warn('[Huawei MT]', e.message);
+      return null;
+    }
+  },
+
+  /**
    * OCR vision: processes image files and extracts clean text using OpenAI GPT-4o
    */
   async transcribeImage(file) {
     const keys = this.getKeys();
-    if (!keys.openai) {
-      throw new Error('An OpenAI API Key is required to perform OCR image text extraction. Please configure your key in settings.');
-    }
 
-    // Convert file to base64
+    // Convert file to base64 (needed by both Huawei OCR and OpenAI Vision)
     const base64Image = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result.split(',')[1]);
       reader.onerror = (e) => reject(e);
       reader.readAsDataURL(file);
     });
+
+    // 1. Try Huawei Cloud OCR first (when configured) — no OpenAI key needed
+    if (this.isUsingHuawei()) {
+      try {
+        const result = await this._callHuaweiProxy('ocr', { image: base64Image });
+        if (result.text && result.text.trim().length > 0) return result.text;
+      } catch (e) {
+        console.warn('[Huawei OCR] failed, falling back:', e.message);
+      }
+    }
+
+    // 2. OpenAI Vision fallback
+    if (!keys.openai) {
+      throw new Error('Image OCR requires either a Huawei Cloud proxy or an OpenAI API Key. Configure one in settings.');
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
