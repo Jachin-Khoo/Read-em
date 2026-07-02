@@ -262,6 +262,75 @@ async function handleKeywords(req, res) {
   }
 }
 
+// POST /api/huawei/tts
+// Body: { text: "...", voice: "english_rose_16k", speed: 1.0 }
+// Calls Huawei SIS Text-to-Speech; returns base64 MP3 audio.
+// Supported voice properties: english_rose_16k, english_william_16k, chinese_huaxiaomei_16k
+async function handleTTS(req, res) {
+  if (!HUAWEI_AK || !HUAWEI_SK || !HUAWEI_PROJECT_ID) {
+    return jsonResponse(res, 503, { error: 'Huawei SIS TTS not configured on this server.' });
+  }
+  try {
+    const body = await readBody(req);
+    if (!body.text) return jsonResponse(res, 400, { error: 'Missing text field' });
+
+    const host = `sis.${HUAWEI_REGION}.myhuaweicloud.com`;
+    const urlPath = `/v1/${HUAWEI_PROJECT_ID}/tts`;
+
+    const result = await huaweiPost(host, urlPath, {
+      text: body.text.slice(0, 500),
+      config: {
+        audio_format: 'mp3',
+        sample_rate: '16000',
+        property: body.voice || 'english_rose_16k',
+        volume: 100,
+        pitch: 0,
+        speed: Math.round((parseFloat(body.speed) || 1.0) * 100),
+      },
+    });
+
+    const audio = result.result?.audio_data || result.audio_data || '';
+    jsonResponse(res, 200, { audio, provider: 'huawei-tts' });
+  } catch (e) {
+    console.error('[Huawei TTS]', e.message);
+    jsonResponse(res, 500, { error: e.message });
+  }
+}
+
+// POST /api/huawei/nlp/ner
+// Body: { text: "..." }
+// Calls Huawei NLP Named Entity Recognition (domain NER).
+// Returns entities with types: PER (person), LOC (location), ORG (org), MISC (domain terms).
+// Used for smarter vocabulary pre-teaching — NER identifies domain-specific terms more accurately
+// than word-length heuristics.
+async function handleNER(req, res) {
+  if (!HUAWEI_AK || !HUAWEI_SK || !HUAWEI_PROJECT_ID) {
+    return jsonResponse(res, 503, { error: 'Huawei NLP NER not configured on this server.' });
+  }
+  try {
+    const body = await readBody(req);
+    if (!body.text) return jsonResponse(res, 400, { error: 'Missing text field' });
+
+    const host = `nlp.${HUAWEI_REGION}.myhuaweicloud.com`;
+    const urlPath = `/v1/${HUAWEI_PROJECT_ID}/nlp/ner-domain`;
+
+    const result = await huaweiPost(host, urlPath, {
+      text: body.text.slice(0, 2000),
+    });
+
+    // result.result is [{word, tag, offset, len}, ...]
+    const entities = (result.result || []).map(e => ({
+      word: e.word || e.entity || '',
+      type: e.tag || e.label || 'MISC',
+    })).filter(e => e.word.length > 0);
+
+    jsonResponse(res, 200, { entities, provider: 'huawei-nlp-ner' });
+  } catch (e) {
+    console.error('[Huawei NER]', e.message);
+    jsonResponse(res, 500, { error: e.message });
+  }
+}
+
 // POST /api/huawei/nlp/translate
 // Body: { text: "...", from: "en", to: "zh"|"ms"|"ta" }
 // Calls Huawei NLP Machine Translation for mother-tongue bridging.
@@ -315,6 +384,8 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/huawei/asr'              && req.method === 'POST') return handleASR(req, res);
     if (pathname === '/api/huawei/nlp/keywords'     && req.method === 'POST') return handleKeywords(req, res);
     if (pathname === '/api/huawei/nlp/translate'    && req.method === 'POST') return handleTranslate(req, res);
+    if (pathname === '/api/huawei/tts'              && req.method === 'POST') return handleTTS(req, res);
+    if (pathname === '/api/huawei/nlp/ner'          && req.method === 'POST') return handleNER(req, res);
     return jsonResponse(res, 404, { error: 'Unknown proxy route' });
   }
 
@@ -348,7 +419,7 @@ server.listen(PORT, () => {
   console.log(`Read'Em server running at http://localhost:${PORT}`);
   if (HUAWEI_AK && HUAWEI_SK && HUAWEI_PROJECT_ID) {
     console.log(`  Huawei Cloud proxy ACTIVE (region: ${HUAWEI_REGION}, project: ${HUAWEI_PROJECT_ID})`);
-    console.log(`  Routes: OCR | NLP simplify | ASR (fluency) | NLP keywords | NLP translate`);
+    console.log(`  Routes: OCR | NLP simplify | ASR (fluency) | NLP keywords | NLP translate | TTS | NLP NER`);
   } else {
     console.log(`  Huawei Cloud proxy: NOT configured`);
     console.log(`  Set HUAWEI_AK, HUAWEI_SK, HUAWEI_PROJECT_ID (and optionally HUAWEI_REGION) to enable.`);

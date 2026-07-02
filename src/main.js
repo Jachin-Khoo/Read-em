@@ -512,6 +512,8 @@ function initEventListeners() {
     doc.readerWorkspace.classList.add('show-upload');
     appState.savedScrollTop = 0;
     appState.pdfDoc = null;
+    appState.subject = 'General';
+    doc.subjectBadge.innerHTML = '<i class="fa-solid fa-tag"></i> General';
     doc.btnViewPdf.disabled = true;
     doc.pdfCanvasContainer.innerHTML = '';
     doc.btnCheckUnderstanding.style.display = 'none';
@@ -902,6 +904,17 @@ async function handleIngestedFile(file) {
 
 // Entry point: show vocab pre-teaching modal, then load reader
 async function beginReadingSession(text) {
+  // Auto-detect subject when user didn't select one via demo dropdown or filename
+  if (appState.subject === 'General') {
+    try {
+      const detected = await AIService.detectSubject(text);
+      if (detected !== 'General') {
+        appState.subject = detected;
+        doc.subjectBadge.innerHTML = `<i class="fa-solid fa-tag"></i> ${detected}`;
+      }
+    } catch (e) { /* keep General */ }
+  }
+
   saveSessionToHistory(text, appState.subject);
   appState.pendingPreteachText = text;
   doc.vocabModal.style.display = 'flex';

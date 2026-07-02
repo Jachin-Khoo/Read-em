@@ -100,9 +100,10 @@ export const TTS = {
     if (typeof window === 'undefined') return;
 
     const triggerCallback = async () => {
+      const huaweiVoices = this.getHuaweiVoices();
       const elevenLabsVoices = await this.getElevenLabsVoices();
       const nativeVoices = this.getAvailableVoices();
-      callback([...elevenLabsVoices, ...nativeVoices]);
+      callback([...huaweiVoices, ...elevenLabsVoices, ...nativeVoices]);
     };
 
     if (window.speechSynthesis) {
@@ -116,6 +117,19 @@ export const TTS = {
     
     // Initial call
     triggerCallback();
+  },
+
+  /**
+   * Return Huawei SIS TTS voice options when the proxy is configured.
+   * Voice property strings map to Huawei SIS supported voice models.
+   */
+  getHuaweiVoices() {
+    if (!AIService.isUsingHuawei()) return [];
+    return [
+      { name: 'Huawei: Rose (English, Female)', value: 'huawei|english_rose_16k', lang: 'en' },
+      { name: 'Huawei: William (English, Male)', value: 'huawei|english_william_16k', lang: 'en' },
+      { name: 'Huawei: Huaxiaomei (中文, Female)', value: 'huawei|chinese_huaxiaomei_16k', lang: 'zh' },
+    ];
   },
 
   /**
@@ -167,6 +181,12 @@ export const TTS = {
    */
   speak(parsedData, options = {}, onHighlight, onEnd) {
     this.stop(); // Cancel active reading session
+
+    if (options.voiceName && options.voiceName.startsWith('huawei|')) {
+      const property = options.voiceName.split('|')[1];
+      this.speakHuawei(parsedData, property, options, onHighlight, onEnd);
+      return;
+    }
 
     if (options.voiceName && options.voiceName.startsWith('elevenlabs|')) {
       const voiceId = options.voiceName.split('|')[1];
@@ -241,6 +261,41 @@ export const TTS = {
     };
 
     window.speechSynthesis.speak(activeUtterance);
+  },
+
+  async speakHuawei(parsedData, voiceProperty, options, onHighlight, onEnd) {
+    wordRanges = parsedData.ranges;
+    onWordHighlightCallback = onHighlight;
+    onSpeechEndCallback = onEnd;
+    currentWordIndex = -1;
+
+    try {
+      const audio64 = await AIService.synthesizeSpeech(
+        parsedData.utteranceText.slice(0, 500),
+        voiceProperty,
+        options.rate || 1.0
+      );
+      if (!audio64) throw new Error('Huawei TTS returned no audio — is the proxy server running?');
+
+      const bytes = Uint8Array.from(atob(audio64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'audio/mp3' });
+      const audioUrl = URL.createObjectURL(blob);
+
+      elevenLabsAudio = new Audio(audioUrl);
+      elevenLabsAudio.playbackRate = options.rate || 1.0;
+
+      elevenLabsAudio.oncanplaythrough = () => {
+        if (elevenLabsAudio) { elevenLabsAudio.play(); this.startHighlightSyncLoop(); }
+      };
+      elevenLabsAudio.onended = () => { this.cleanup(); if (onSpeechEndCallback) onSpeechEndCallback(); };
+      elevenLabsAudio.onerror = () => { this.cleanup(); if (onSpeechEndCallback) onSpeechEndCallback(); };
+
+    } catch (e) {
+      console.error('Huawei TTS error:', e.message);
+      const nativeVoices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('en'));
+      const fallback = nativeVoices.length > 0 ? nativeVoices[0].name : '';
+      this.speak(parsedData, { ...options, voiceName: fallback }, onHighlight, onEnd);
+    }
   },
 
   async speakElevenLabs(parsedData, voiceId, options, onHighlight, onEnd) {
@@ -401,6 +456,12 @@ export const TTS = {
     }
 
     const keys = AIService.getKeys();
+    if (voiceName && voiceName.startsWith('huawei|')) {
+      const property = voiceName.split('|')[1];
+      this.speakSingleWordHuawei(word, property);
+      return;
+    }
+
     if (voiceName && voiceName.startsWith('elevenlabs|') && keys.elevenlabs) {
       const voiceId = voiceName.split('|')[1];
       this.speakSingleWordElevenLabs(word, voiceId);
@@ -422,6 +483,20 @@ export const TTS = {
     }
     utterance.rate = 0.85;
     window.speechSynthesis.speak(utterance);
+  },
+
+  async speakSingleWordHuawei(word, voiceProperty) {
+    try {
+      const audio64 = await AIService.synthesizeSpeech(word, voiceProperty, 0.85);
+      if (!audio64) return;
+      const bytes = Uint8Array.from(atob(audio64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'audio/mp3' });
+      elevenLabsAudio = new Audio(URL.createObjectURL(blob));
+      elevenLabsAudio.playbackRate = 0.85;
+      elevenLabsAudio.play();
+    } catch (e) {
+      console.error('Huawei TTS single word error:', e.message);
+    }
   },
 
   async speakSingleWordElevenLabs(word, voiceId) {

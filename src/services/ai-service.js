@@ -566,6 +566,20 @@ Response JSON structure:
    */
   async extractHardWords(text, subject = 'General') {
     if (this.isUsingHuawei()) {
+      // Try NER first — identifies domain-specific terms more accurately than keyword frequency
+      try {
+        const nerResult = await this._callHuaweiProxy('nlp/ner', { text });
+        if (Array.isArray(nerResult.entities) && nerResult.entities.length > 0) {
+          const domainWords = nerResult.entities
+            .filter(e => e.type !== 'PER' && e.type !== 'LOC')
+            .map(e => e.word.toLowerCase())
+            .filter(w => w.length >= 4);
+          if (domainWords.length > 0) return [...new Set(domainWords)].slice(0, 25);
+        }
+      } catch (e) {
+        console.warn('[Huawei NER] falling back to keyword extraction:', e.message);
+      }
+      // Fall back to keyword frequency extraction
       try {
         const result = await this._callHuaweiProxy('nlp/keywords', { text, limit: 25 });
         if (Array.isArray(result.keywords) && result.keywords.length > 0) {
@@ -579,6 +593,60 @@ Response JSON structure:
     const COMMON = new Set(['about','after','again','against','because','before','between','could','during','every','first','found','going','large','learn','likely','never','other','place','provide','right','seems','since','small','sound','still','their','there','these','three','through','together','toward','under','until','using','water','where','while','world','would','write','years']);
     const words = text.toLowerCase().match(/\b[a-z]{6,}\b/g) || [];
     return [...new Set(words.filter(w => !COMMON.has(w)))].slice(0, 25);
+  },
+
+  /**
+   * Synthesises speech via Huawei SIS TTS.
+   * voice: Huawei SIS voice property string (e.g. 'english_rose_16k', 'chinese_huaxiaomei_16k').
+   * speed: playback rate multiplier (1.0 = normal).
+   * Returns base64-encoded MP3 string, or null if Huawei is not configured.
+   */
+  async synthesizeSpeech(text, voice = 'english_rose_16k', speed = 1.0) {
+    if (!this.isUsingHuawei()) return null;
+    try {
+      const result = await this._callHuaweiProxy('tts', { text: text.slice(0, 500), voice, speed });
+      return result.audio || null;
+    } catch (e) {
+      console.warn('[Huawei TTS]', e.message);
+      return null;
+    }
+  },
+
+  /**
+   * Detects the academic subject of a text passage using keyword signal matching.
+   * Uses Huawei NLP keyword extraction when configured; falls back to a built-in
+   * subject vocabulary table.
+   * Returns one of: 'Science' | 'Mathematics' | 'History' | 'Literature' | 'General'
+   */
+  async detectSubject(text) {
+    const SUBJECT_SIGNALS = {
+      Science:      ['photosynthesis','chlorophyll','evaporation','condensation','precipitation','organism','ecosystem','stomata','atmosphere','molecule','oxygen','carbon','biology','chemistry','physics','hypothesis','experiment','nucleus','membrane','digestion','respiration','habitat','adaptation','food','chain','water','cycle','soil','roots'],
+      Mathematics:  ['equation','fraction','denominator','numerator','ratio','percentage','geometry','algebra','multiply','divide','subtract','perimeter','volume','probability','integer','decimal','marbles','containers','remainder','remainder','polygon','calculate','average','median','mode','total','equal','parts'],
+      History:      ['empire','civilization','century','ancient','conquest','dynasty','parliament','revolution','archaeologist','aqueduct','medieval','colony','treaty','republic','monarchy','roman','renaissance','independence','war','soldiers','kingdom','pharaoh','siege','feudal','colonial','historic'],
+      Literature:   ['protagonist','metaphor','narrative','villain','legend','folklore','outlaw','poetry','stanza','theme','character','conflict','symbolism','plot','setting','sheriff','forest','merry','folklore','fable','epic','tragedy','comedy','sonnet','soliloquy','allegory'],
+    };
+
+    let words;
+    if (this.isUsingHuawei()) {
+      try {
+        const result = await this._callHuaweiProxy('nlp/keywords', { text, limit: 30 });
+        if (Array.isArray(result.keywords) && result.keywords.length > 0) {
+          words = result.keywords;
+        }
+      } catch (e) { /* fall through to text scan */ }
+    }
+
+    const lower = text.toLowerCase();
+    const scores = {};
+    for (const [subject, signals] of Object.entries(SUBJECT_SIGNALS)) {
+      if (words) {
+        scores[subject] = signals.filter(s => words.some(w => w.includes(s) || s.includes(w))).length;
+      } else {
+        scores[subject] = signals.filter(s => lower.includes(s)).length;
+      }
+    }
+    const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+    return best && best[1] > 0 ? best[0] : 'General';
   },
 
   /**
