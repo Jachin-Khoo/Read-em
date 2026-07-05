@@ -1,26 +1,19 @@
 /* ==========================================================================
    Read'Em Passive Difficulty Tracker (src/store/tracker.js)
 
-   Schema (all localStorage):
-   - readem_mock_wordLogs        [{key, uid, word, subject, clicks, syllabified, defined, audioRepeated, lastUpdated}]
-   - readem_mock_sentenceLogs    [{uid, original, simplified, subject, timestamp}]
-   - readem_mock_speedLogs       [{uid, rate, timestamp}]
-   - readem_session_summaries    [{uid, sessionId, subject, passagePreview, wordsRead, wordsDecoded,
-                                    decodeRate, durationMs, readingSpeedWpm, simplifications,
-                                    comprehensionCompleted, timestamp}]
-   - readem_reading_progress     [{uid, sessionId, timestamp, wpm, decodeRate, subject}]
-   - readem_comprehension_logs   [{uid, sessionId, subject, questionsAnswered, totalQuestions,
-                                    completionRate, timestamp}]
+   Firestore schema:
+   - wordLogs/{uid}_{word}_{subject}   — per-word interaction counters
+   - sentenceLogs/{autoId}             — simplification events
+   - speedLogs/{autoId}                — TTS speed selections
+   - sessionSummaries/{sessionId}      — one doc per completed reading session
+   - readingProgress/{autoId}          — WPM trend points (for sparkline)
+   - comprehensionLogs/{autoId}        — comprehension check completions
    ========================================================================== */
 
-const COLLECTIONS = {
-  WORD_LOGS:          'readem_mock_wordLogs',
-  SENTENCE_LOGS:      'readem_mock_sentenceLogs',
-  SPEED_LOGS:         'readem_mock_speedLogs',
-  SESSION_SUMMARIES:  'readem_session_summaries',
-  READING_PROGRESS:   'readem_reading_progress',
-  COMPREHENSION_LOGS: 'readem_comprehension_logs',
-};
+import {
+  collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where,
+} from 'firebase/firestore';
+import { db } from './firebase.js';
 
 const ACTION_FIELD_MAP = {
   click:        'clicks',
@@ -35,13 +28,6 @@ export function setTrackerUser(uid) {
   currentUid = uid;
 }
 
-const load = (key) => {
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); }
-  catch (e) { return []; }
-};
-
-const save = (key, data) => localStorage.setItem(key, JSON.stringify(data));
-
 export const Tracker = {
 
   /* ─── Word interaction ─────────────────────────────────────────────────── */
@@ -53,34 +39,40 @@ export const Tracker = {
     const field = ACTION_FIELD_MAP[actionType];
     if (!field) return;
 
-    const logs = load(COLLECTIONS.WORD_LOGS);
     const key = `${currentUid}_${clean}_${subject}`;
-    let entry = logs.find(l => l.key === key);
-    if (!entry) {
-      entry = { key, uid: currentUid, word: clean, subject, clicks: 0, syllabified: 0, defined: 0, audioRepeated: 0 };
-      logs.push(entry);
-    }
+    const docRef = doc(db, 'wordLogs', key);
+    const snap = await getDoc(docRef);
+    const entry = snap.exists()
+      ? snap.data()
+      : { key, uid: currentUid, word: clean, subject, clicks: 0, syllabified: 0, defined: 0, audioRepeated: 0 };
+
     entry[field] = (entry[field] || 0) + 1;
     entry.lastUpdated = new Date().toISOString();
-    save(COLLECTIONS.WORD_LOGS, logs);
+    await setDoc(docRef, entry);
   },
 
   /* ─── Sentence simplification ─────────────────────────────────────────── */
 
   async logSentenceSimplification(original, simplified, subject = 'General') {
     if (!currentUid || !original || !simplified) return;
-    const logs = load(COLLECTIONS.SENTENCE_LOGS);
-    logs.push({ uid: currentUid, original: original.trim(), simplified: simplified.trim(), subject, timestamp: new Date().toISOString() });
-    save(COLLECTIONS.SENTENCE_LOGS, logs);
+    await addDoc(collection(db, 'sentenceLogs'), {
+      uid: currentUid,
+      original: original.trim(),
+      simplified: simplified.trim(),
+      subject,
+      timestamp: new Date().toISOString(),
+    });
   },
 
   /* ─── TTS speed selection ──────────────────────────────────────────────── */
 
   async logReadingSpeed(rate) {
     if (!currentUid) return;
-    const logs = load(COLLECTIONS.SPEED_LOGS);
-    logs.push({ uid: currentUid, rate: parseFloat(rate), timestamp: new Date().toISOString() });
-    save(COLLECTIONS.SPEED_LOGS, logs);
+    await addDoc(collection(db, 'speedLogs'), {
+      uid: currentUid,
+      rate: parseFloat(rate),
+      timestamp: new Date().toISOString(),
+    });
   },
 
   /* ─── Session summary (one per completed reading session) ─────────────── */
@@ -90,8 +82,7 @@ export const Tracker = {
     const id = sessionId || `session-${Date.now()}`;
     const decodeRate = wordsRead > 0 ? wordsDecoded / wordsRead : 0;
 
-    const summaries = load(COLLECTIONS.SESSION_SUMMARIES);
-    summaries.push({
+    const summary = {
       uid: currentUid,
       sessionId: id,
       subject: subject || 'General',
@@ -104,13 +95,11 @@ export const Tracker = {
       readingSpeedWpm: readingSpeedWpm || 0,
       comprehensionCompleted: !!comprehensionCompleted,
       timestamp: new Date().toISOString(),
-    });
-    save(COLLECTIONS.SESSION_SUMMARIES, summaries);
+    };
+    await setDoc(doc(db, 'sessionSummaries', id), summary);
 
-    // Append to reading progress trend if WPM is available
     if (readingSpeedWpm > 0) {
-      const progress = load(COLLECTIONS.READING_PROGRESS);
-      progress.push({
+      await addDoc(collection(db, 'readingProgress'), {
         uid: currentUid,
         sessionId: id,
         timestamp: new Date().toISOString(),
@@ -118,7 +107,6 @@ export const Tracker = {
         decodeRate: parseFloat(decodeRate.toFixed(3)),
         subject: subject || 'General',
       });
-      save(COLLECTIONS.READING_PROGRESS, progress);
     }
   },
 
@@ -126,8 +114,7 @@ export const Tracker = {
 
   async logComprehensionCompleted(sessionId, subject, questionsAnswered, totalQuestions) {
     if (!currentUid) return;
-    const logs = load(COLLECTIONS.COMPREHENSION_LOGS);
-    logs.push({
+    await addDoc(collection(db, 'comprehensionLogs'), {
       uid: currentUid,
       sessionId,
       subject,
@@ -136,28 +123,28 @@ export const Tracker = {
       completionRate: totalQuestions > 0 ? questionsAnswered / totalQuestions : 0,
       timestamp: new Date().toISOString(),
     });
-    save(COLLECTIONS.COMPREHENSION_LOGS, logs);
 
     // Back-patch the matching session summary
-    const summaries = load(COLLECTIONS.SESSION_SUMMARIES);
-    const match = summaries.find(s => s.sessionId === sessionId && s.uid === currentUid);
-    if (match) {
-      match.comprehensionCompleted = questionsAnswered > 0;
-      save(COLLECTIONS.SESSION_SUMMARIES, summaries);
+    const summaryRef = doc(db, 'sessionSummaries', sessionId);
+    const snap = await getDoc(summaryRef);
+    if (snap.exists() && snap.data().uid === currentUid) {
+      await updateDoc(summaryRef, { comprehensionCompleted: questionsAnswered > 0 });
     }
   },
 
   /* ─── Read queries ─────────────────────────────────────────────────────── */
 
   async getWordDigest() {
-    return load(COLLECTIONS.WORD_LOGS)
-      .map(entry => {
+    const snap = await getDocs(collection(db, 'wordLogs'));
+    return snap.docs
+      .map((d) => {
+        const entry = d.data();
         const w = (entry.clicks || 0) + (entry.syllabified || 0) * 2 + (entry.defined || 0) * 3 + (entry.audioRepeated || 0) * 2;
         const difficulty = w >= 6 ? 'high' : w >= 3 ? 'medium' : 'low';
         const actions = [];
-        if (entry.clicks > 0)       actions.push(`Clicked (${entry.clicks})`);
-        if (entry.syllabified > 0)  actions.push(`Syllables (${entry.syllabified})`);
-        if (entry.defined > 0)      actions.push(`Defined (${entry.defined})`);
+        if (entry.clicks > 0)        actions.push(`Clicked (${entry.clicks})`);
+        if (entry.syllabified > 0)   actions.push(`Syllables (${entry.syllabified})`);
+        if (entry.defined > 0)       actions.push(`Defined (${entry.defined})`);
         if (entry.audioRepeated > 0) actions.push(`Replayed (${entry.audioRepeated})`);
         return { word: entry.word, subject: entry.subject, uid: entry.uid, actionsTriggered: actions.join(', '), difficulty, weight: w };
       })
@@ -165,16 +152,24 @@ export const Tracker = {
   },
 
   async getSentenceDigest() {
-    const sorted = [...load(COLLECTIONS.SENTENCE_LOGS)].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const snap = await getDocs(collection(db, 'sentenceLogs'));
+    const sorted = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     const seen = new Set();
-    return sorted.filter(e => { if (seen.has(e.original)) return false; seen.add(e.original); return true; });
+    return sorted.filter((e) => { if (seen.has(e.original)) return false; seen.add(e.original); return true; });
   },
 
   async getStats() {
-    const wordLogs     = load(COLLECTIONS.WORD_LOGS);
-    const sentenceLogs = load(COLLECTIONS.SENTENCE_LOGS);
-    const speedLogs    = load(COLLECTIONS.SPEED_LOGS);
-    const summaries    = load(COLLECTIONS.SESSION_SUMMARIES);
+    const [wordSnap, sentenceSnap, speedSnap, summarySnap] = await Promise.all([
+      getDocs(collection(db, 'wordLogs')),
+      getDocs(collection(db, 'sentenceLogs')),
+      getDocs(collection(db, 'speedLogs')),
+      getDocs(collection(db, 'sessionSummaries')),
+    ]);
+
+    const speedLogs  = speedSnap.docs.map((d) => d.data());
+    const summaries  = summarySnap.docs.map((d) => d.data());
 
     let avgSpeed = 1.0;
     if (speedLogs.length > 0) {
@@ -187,25 +182,29 @@ export const Tracker = {
     }
 
     return {
-      totalStruggledWords: wordLogs.length,
-      totalSimplifications: sentenceLogs.length,
-      totalSessions: summaries.length,
-      avgSpeed: `${avgSpeed}x`,
+      totalStruggledWords:  wordSnap.size,
+      totalSimplifications: sentenceSnap.size,
+      totalSessions:        summaries.length,
+      avgSpeed:      `${avgSpeed}x`,
       avgDecodeRate: `${avgDecodeRate}%`,
     };
   },
 
-  // Returns list of unique students who have session data
   async getStudentList() {
-    const summaries = load(COLLECTIONS.SESSION_SUMMARIES);
-    const wordLogs  = load(COLLECTIONS.WORD_LOGS);
-    const uids = [...new Set([...summaries.map(s => s.uid), ...wordLogs.map(w => w.uid)])];
-    return uids.map(uid => {
-      const userSessions = summaries.filter(s => s.uid === uid).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const [summarySnap, wordSnap] = await Promise.all([
+      getDocs(collection(db, 'sessionSummaries')),
+      getDocs(collection(db, 'wordLogs')),
+    ]);
+    const summaries = summarySnap.docs.map((d) => d.data());
+    const wordLogs  = wordSnap.docs.map((d) => d.data());
+    const uids = [...new Set([...summaries.map((s) => s.uid), ...wordLogs.map((w) => w.uid)])];
+
+    return uids.map((uid) => {
+      const userSessions = summaries.filter((s) => s.uid === uid).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       return {
         uid,
         sessionCount: userSessions.length,
-        lastActive: userSessions[0]?.timestamp || null,
+        lastActive:   userSessions[0]?.timestamp || null,
         avgWpm: userSessions.length > 0
           ? Math.round(userSessions.reduce((a, s) => a + (s.readingSpeedWpm || 0), 0) / userSessions.length)
           : 0,
@@ -213,21 +212,27 @@ export const Tracker = {
     });
   },
 
-  // Progress data for a single student (for sparkline)
   async getStudentProgress(uid) {
-    return load(COLLECTIONS.READING_PROGRESS)
-      .filter(p => p.uid === uid)
+    const snap = await getDocs(query(collection(db, 'readingProgress'), where('uid', '==', uid)));
+    return snap.docs
+      .map((d) => d.data())
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-10);
   },
 
   async clearLogs() {
-    Object.values(COLLECTIONS).forEach(key => localStorage.removeItem(key));
+    const cols = ['wordLogs', 'sentenceLogs', 'speedLogs', 'sessionSummaries', 'readingProgress', 'comprehensionLogs'];
+    await Promise.all(
+      cols.map(async (col) => {
+        const snap = await getDocs(collection(db, col));
+        await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+      })
+    );
   },
 
   async exportDigestReport() {
     const [stats, words, sentences, students] = await Promise.all([
-      this.getStats(), this.getWordDigest(), this.getSentenceDigest(), this.getStudentList()
+      this.getStats(), this.getWordDigest(), this.getSentenceDigest(), this.getStudentList(),
     ]);
 
     let text = `==================================================\n`;

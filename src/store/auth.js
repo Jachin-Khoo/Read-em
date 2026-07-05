@@ -1,139 +1,91 @@
 /* ==========================================================================
-   Read'Em Auth Service (src/auth.js)
-   Email/Password sign-in & sign-up with a teacher/student role layer.
+   Read'Em Auth Service (src/store/auth.js)
+   Firebase Authentication + Firestore user profiles.
    ========================================================================== */
 
-// Simulated users store in localStorage
-const getUsersFromStorage = () => {
-  try {
-    return JSON.parse(localStorage.getItem('readem_mock_users') || '{}');
-  } catch (e) {
-    return {};
-  }
-};
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as fbSignOut,
+  onAuthStateChanged,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase.js';
 
-const saveUsersToStorage = (users) => {
-  localStorage.setItem('readem_mock_users', JSON.stringify(users));
-};
-
-let currentUser = null;
+let _cachedProfile = null; // { uid, email, displayName, role, createdAt }
 const listeners = new Set();
 
-// Try to auto-restore session from localStorage
-try {
-  const savedUser = localStorage.getItem('readem_current_user');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-  }
-} catch (e) {}
+const notifyListeners = () => listeners.forEach((cb) => cb(_cachedProfile));
 
-const notifyListeners = () => {
-  listeners.forEach((callback) => callback(currentUser));
-};
+async function loadProfile(firebaseUser) {
+  if (!firebaseUser) {
+    _cachedProfile = null;
+    return null;
+  }
+  const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+  _cachedProfile = snap.exists()
+    ? { uid: firebaseUser.uid, email: firebaseUser.email, ...snap.data() }
+    : { uid: firebaseUser.uid, email: firebaseUser.email, displayName: firebaseUser.displayName, role: 'student' };
+  return _cachedProfile;
+}
+
+// Restore session on page load — Firebase handles persistence automatically.
+onAuthStateChanged(auth, async (firebaseUser) => {
+  await loadProfile(firebaseUser);
+  notifyListeners();
+});
 
 export const Auth = {
-  /**
-   * Create a new account and persist the chosen role to local storage.
-   * @param {string} email
-   * @param {string} password
-   * @param {'teacher'|'student'} role
-   * @param {string} displayName
-   */
   async signUp(email, password, role, displayName) {
-    const cleanEmail = email.trim().toLowerCase();
-    const users = getUsersFromStorage();
-    
-    if (users[cleanEmail]) {
-      throw new Error('Auth: Email already in use (Local Mock)');
-    }
-
-    const uid = `mock-uid-${Date.now()}`;
-    const userProfile = {
-      uid,
-      email: cleanEmail,
-      displayName: displayName || email.split('@')[0],
-      role,
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const name = displayName || email.split('@')[0];
+    await updateProfile(cred.user, { displayName: name });
+    const profile = {
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName: name,
+      role: role || 'student',
       createdAt: new Date().toISOString(),
-      password
     };
-
-    users[cleanEmail] = userProfile;
-    saveUsersToStorage(users);
-
-    currentUser = userProfile;
-    localStorage.setItem('readem_current_user', JSON.stringify(currentUser));
+    await setDoc(doc(db, 'users', cred.user.uid), profile);
+    _cachedProfile = profile;
     notifyListeners();
-
-    return { uid, role };
+    return { uid: cred.user.uid, role: profile.role };
   },
 
-  /**
-   * Sign in an existing account and resolve their stored role.
-   * Dynamically auto-creates user if not registered to allow "any email" login.
-   */
   async signIn(email, password) {
-    const cleanEmail = email.trim().toLowerCase();
-    const users = getUsersFromStorage();
-    let userProfile = users[cleanEmail];
-
-    if (!userProfile) {
-      const uid = `mock-uid-${Date.now()}`;
-      userProfile = {
-        uid,
-        email: cleanEmail,
-        displayName: email.split('@')[0],
-        role: 'student',
-        createdAt: new Date().toISOString(),
-        password
-      };
-      users[cleanEmail] = userProfile;
-      saveUsersToStorage(users);
-    } else if (userProfile.password !== password) {
-      throw new Error('Auth: Incorrect password (Local Mock)');
-    }
-
-    currentUser = userProfile;
-    localStorage.setItem('readem_current_user', JSON.stringify(currentUser));
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await loadProfile(cred.user);
     notifyListeners();
-
-    return { uid: userProfile.uid, role: userProfile.role };
+    return { uid: cred.user.uid, role: _cachedProfile?.role };
   },
 
   async signOut() {
-    currentUser = null;
-    localStorage.removeItem('readem_current_user');
+    await fbSignOut(auth);
+    _cachedProfile = null;
     notifyListeners();
   },
 
   async getUserRole(uid) {
-    const users = getUsersFromStorage();
-    const found = Object.values(users).find(u => u.uid === uid);
-    return found ? found.role : null;
+    if (_cachedProfile?.uid === uid) return _cachedProfile.role;
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() ? snap.data().role : null;
   },
 
   async getUserDisplayName(uid) {
-    const users = getUsersFromStorage();
-    const found = Object.values(users).find(u => u.uid === uid);
-    return found ? (found.displayName || found.email.split('@')[0]) : uid;
+    if (_cachedProfile?.uid === uid) return _cachedProfile.displayName || _cachedProfile.email?.split('@')[0] || uid;
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() ? (snap.data().displayName || snap.data().email?.split('@')[0] || uid) : uid;
   },
 
-  /**
-   * Subscribe to auth state changes. Returns the unsubscribe function.
-   */
   onAuthChange(callback) {
     listeners.add(callback);
-    // Fire callback with initial state asynchronously to match Firebase behavior
-    setTimeout(() => {
-      callback(currentUser);
-    }, 0);
-
-    return () => {
-      listeners.delete(callback);
-    };
+    setTimeout(() => callback(_cachedProfile), 0);
+    return () => listeners.delete(callback);
   },
 
   getCurrentUser() {
-    return currentUser;
+    return _cachedProfile;
   },
 };
-

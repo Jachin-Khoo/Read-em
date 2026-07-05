@@ -1,81 +1,133 @@
 # Read'Em
-### AI-Enabled Reading Companion for Dyslexic Learners
+### Breaking the Reading Barrier for Dyslexic Learners in Singapore
 
 [![Live Demo](https://img.shields.io/badge/live-read--em--215cc.web.app-brightgreen)](https://read-em-215cc.web.app/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
-[![Huawei Cloud](https://img.shields.io/badge/powered_by-Huawei_Cloud-red)](#huawei-cloud-integration)
+[![Huawei Cloud](https://img.shields.io/badge/powered_by-Huawei_Cloud-red)](#why-huawei-cloud)
 
 > Built for **Tech4City 2026** — AI For Education track.
-> Targeting dyslexic students and adults in Singapore who lose school-based support after Primary 4, and working adults who have never had any support at all.
 
 ---
 
 ## The Problem
 
-Dyslexia affects roughly **10% of Singapore's population**. School-based remediation (SDR) ends after Primary 4 — yet students must continue reading dense worksheets, textbooks, and exam papers across every subject for the next decade. Working adults face the same struggle with workplace documents and emails, entirely alone.
+**10% of Singapore's population has dyslexia** — roughly 570,000 people.
 
-Existing tools are fragmented: a TTS app here, a font extension there. None combine visibility, decoding, and comprehension into one cohesive, zero-setup experience.
+Singapore's School Dyslexia Remediation (SDR) programme ends after **Primary 4**. From Primary 5 onward, students must independently navigate:
+- Dense textbooks and exam papers across 6 subjects
+- PSLE, O-Level, and A-Level examination materials
+- Workplace documents as working adults — with no support at all
+
+Private dyslexia tuition at the Dyslexia Association of Singapore costs **$80–$150/hour** — out of reach for most families. Digital tools are fragmented: a font extension here, a TTS app there. None address all three layers of reading difficulty in one workflow.
+
+**Reading difficulty has three distinct layers:**
+1. **Seeing** — text that is visually hard to distinguish and track
+2. **Decoding** — words that cannot be sounded out or understood
+3. **Comprehension** — sentences too complex to make sense of
+
+No existing tool solves all three at once.
 
 ---
 
-## What Read'Em Does
+## Our Solution
 
-Read'Em is a single, unified reading workspace. Upload any text — typed, PDF, or a photo of a worksheet — and it adapts the entire reading experience to the user's needs.
+Read'Em is a single, unified AI reading workspace. Upload any text — typed, PDF, or a photo of a worksheet — and it adapts the entire experience to the student's needs.
 
-| Layer | What it does |
+| Layer | What Read'Em does |
 |---|---|
-| **Visibility** | Dyslexia-optimised fonts (OpenDyslexic, Lexend), font/spacing sliders, colour overlays, reading ruler, line focus, bionic reading, morpheme colours, phonics overlays |
-| **Decoding** | Click any word — syllables, phonetics, simple definition, analogy, mother-tongue translation (EN / Chinese / Malay / Tamil) |
+| **Visibility** | OpenDyslexic / Lexend fonts, font and spacing sliders, colour overlays, reading ruler, line focus, bionic reading, phonics overlays, morpheme colours |
+| **Decoding** | Click any word → syllables, phonetics, plain definition, analogy, mother-tongue translation (Chinese / Malay / Tamil) |
 | **Comprehension** | AI paragraph simplification that preserves subject-specific terminology while rewriting dense sentence structures |
-| **Listening** | Multi-voice TTS with word-by-word highlight sync; ElevenLabs neural voices; Web Speech API fallback |
-| **Input** | Typed text, PDF upload, image/photo OCR via Huawei Cloud Vision or OpenAI GPT-4o |
-| **Teacher Visibility** | Dashboard showing class-wide struggled vocabulary, sentences requiring simplification, reading speed trends, and decode rates |
-| **Fluency Assessment** | Read Aloud Check — student reads the passage aloud, Huawei SIS transcribes and scores word-level accuracy |
-| **Passage summary** | Huawei NLP summarises the passage in 1-2 plain sentences before reading begins, so students know what to expect |
-| **Paragraph difficulty map** | Green / amber / red left border on each paragraph shows reading difficulty at a glance |
-| **AI teaching insights** | Teacher dashboard generates natural language guidance from telemetry ("Students are struggling most with Science vocabulary...") |
-| **Image upload** | Students can photograph a worksheet and upload the image — OCR via Huawei Cloud Vision or OpenAI GPT-4o |
-
-All features include a full **offline simulation mode**: the app is fully usable without any API keys, which is the realistic experience for most students in schools.
+| **Listening** | Word-by-word TTS with highlight sync across all four Singapore official languages |
+| **Input** | Typed text, PDF upload, or photo of a worksheet (OCR) |
+| **Teacher visibility** | Cross-device dashboard showing struggled vocabulary, simplification events, reading speed trends, and decode rates per student |
+| **Fluency assessment** | Student reads aloud; Huawei SIS transcribes and scores word accuracy in real time |
 
 ---
 
-## Huawei Cloud Integration
+## Why Read'Em, Not X?
 
-Huawei Cloud is the primary AI backend for school deployments. All calls route through `server.js`, a Node.js proxy that handles HMAC-SHA256 signing — credentials never reach the browser.
+| Feature | Read'Em | Microsoft Immersive Reader | Speechify | ChatGPT |
+|---|---|---|---|---|
+| Dyslexia-optimised UI (fonts, overlays, ruler) | Full | Partial | None | None |
+| Word-level decoding with phonetics | Yes | Limited | None | None |
+| AI paragraph simplification | Yes | None | None | Separate step |
+| Mother-tongue bridge (SG 4 languages) | Yes | None | None | None |
+| Worksheet photo OCR | Yes | None | None | Separate step |
+| Cross-device teacher analytics | Yes | None | None | None |
+| Oral fluency assessment | Yes | None | None | None |
+| Zero-setup offline mode | Yes | Requires M365 | Requires account | Requires account |
+| Singapore curriculum passages built-in | Yes | None | None | None |
+
+---
+
+## Business Model
+
+### Who pays?
+
+**Schools** are the primary customer. Dyslexic students rarely self-identify and seek tools — the intervention happens through educators. The teacher dashboard, cross-device sync, and oral fluency assessment exist specifically to serve that procurement decision.
+
+| Tier | Price | What's included |
+|---|---|---|
+| Free | $0 | Core reading tools, offline mode, personal use |
+| Student Pro | $4.90 / month | ElevenLabs neural voices, session history, parent progress reports |
+| School License | $800 / year | Teacher dashboard, class-wide analytics, Huawei Cloud NLP, cross-device sync |
+
+### Go-to-market: B2B2G via SLS integration
+
+Direct school-by-school SaaS sales face MOE's centralised procurement process. The higher-leverage path is integration with the **Singapore Student Learning Space (SLS)** — MOE's mandated e-learning platform used by every student in every public school.
+
+An API-based overlay or plugin approach means:
+- No per-school procurement friction
+- Immediate reach to the full student population
+- MOE controls rollout; Read'Em provides the accessibility layer
+
+**Roadmap:**
+
+| Phase | Timeline | Goal |
+|---|---|---|
+| 1 — Pilot | 2026 | 3–5 schools via DAS partnership; collect longitudinal reading data |
+| 2 — SLS proposal | 2027 | Submit integration proposal to MOE EdTech office |
+| 3 — Nationwide | 2028 | SLS-embedded rollout across all public schools |
+| 4 — Adult track | 2029 | SkillsFuture-aligned workplace literacy module |
+
+---
+
+## Why Huawei Cloud
+
+Huawei Cloud is not just an API provider — it is what makes Read'Em viable at school scale in Singapore.
+
+| Capability | Why it matters for schools |
+|---|---|
+| **Singapore-hosted infrastructure** | Meets PDPA and MOE data residency requirements; student data never leaves Singapore |
+| **Enterprise SLA** | Guaranteed uptime for classroom use — a dropped API mid-lesson has real consequences |
+| **Multilingual NLP** | Native Chinese, Malay, and Tamil language support — not bolted-on translations |
+| **SIS ASR / TTS** | Neural oral fluency assessment and read-aloud in English and Mandarin |
+| **OCR for worksheets** | Accurate text extraction from photographed exam papers under real classroom lighting |
+| **Scalable pricing** | Per-call model scales from a single pilot classroom to nationwide deployment |
+
+All Huawei Cloud calls are proxied through `server.js` with HMAC-SHA256 signing — credentials never reach the browser. When the proxy is live, Huawei takes priority over every other provider.
+
+### Huawei services used
 
 | Service | Feature in Read'Em |
 |---|---|
-| **Huawei OCR** (General Text Recognition) | Worksheet photo to clean readable text |
-| **Huawei NLP** (Text Summarization) | Paragraph simplification for dense academic text |
-| **Huawei NLP** (Keyword Extraction + NER) | Named Entity Recognition flags domain-specific terms for vocabulary pre-teaching; keyword extraction as fallback |
-| **Huawei SIS ASR** (Speech Intelligence) | Oral reading fluency scoring — student reads aloud, AI transcribes and scores word accuracy |
-| **Huawei SIS TTS** | Neural read-aloud voices: English (Rose ♀, William ♂) and Mandarin Chinese (普通话 ♀ ♂) |
-| **Huawei Machine Translation** | Word definitions in 中文, Melayu, தமிழ் — mother-tongue bridge so families can read together |
-| **Auto subject detection** | Classifies pasted text into Science / Mathematics / History / Literature using Huawei NLP keywords |
-| **Passage summary** | Huawei NLP text summarisation at passage level — 1-2 sentence plain English preview before reading begins |
+| OCR — General Text Recognition | Worksheet photo → clean readable text |
+| NLP — Text Summarization | Plain-English 1–2 sentence passage preview before reading begins |
+| NLP — Keyword Extraction + NER | Domain-specific vocabulary pre-teaching |
+| SIS ASR | Oral reading fluency scoring |
+| SIS TTS | Neural read-aloud: English (Rose ♀, William ♂) · Mandarin (Huaxiaomei ♀, Huaxiaogang ♂) |
+| Machine Translation | Word definitions in 中文, Melayu, தமிழ் — mother-tongue bridge |
+| Auto subject detection | Classifies text into Science / Maths / History / Literature using NLP keywords |
 
-When Huawei Cloud is configured, it takes priority over OpenAI for every feature. OpenAI GPT-4o serves as a fallback when running without a deployed proxy.
-
-### Multilingual TTS coverage across Singapore's four official languages
+### Multilingual TTS — Singapore's four official languages
 
 | Language | Provider | Notes |
 |---|---|---|
-| English | Huawei SIS TTS + device Web Speech | Huawei voices are neural-quality; device voices are fallback |
-| 普通话 (Mandarin) | Huawei SIS TTS + device Web Speech | Huawei voices: Huaxiaomei (F), Huaxiaogang (M) |
-| Melayu (Malay) | Device Web Speech API (ms-MY) | Available on most Android, iOS, and Windows devices |
-| தமிழ் (Tamil) | Device Web Speech API (ta-IN) | Available on most Android, iOS, and Windows devices |
-
-Huawei SIS TTS does not natively support Malay or Tamil — these are served by the device's built-in speech engine, which covers both languages on all major platforms. All four language voices appear in the voice selector automatically.
-
----
-
-## Singapore Context
-
-- Pre-loaded **PSLE curriculum passages** across Science, Maths, English, and Workplace documents
-- **Mother-tongue bridge** supports reading at home with parents who may not read English confidently
-- **Offline simulation mode** means the app works in classrooms without any API setup
-- **Freemium model**: Free tier for individuals, Student Pro at $4.90/month, School License at $800/year with teacher dashboards and Huawei Cloud NLP
+| English | Huawei SIS TTS → Web Speech API | Neural quality when proxy is live |
+| 普通话 Mandarin | Huawei SIS TTS → Web Speech API | Huawei voices: Huaxiaomei (F), Huaxiaogang (M) |
+| Melayu Malay | Device Web Speech API (ms-MY) | Huawei SIS does not support Malay TTS |
+| தமிழ் Tamil | Device Web Speech API (ta-IN) | Huawei SIS does not support Tamil TTS |
 
 ---
 
@@ -84,21 +136,15 @@ Huawei SIS TTS does not natively support Malay or Tamil — these are served by 
 | Layer | Technology |
 |---|---|
 | Frontend | Vite + Vanilla JS (ES modules), single `index.html` |
-| Fonts | Lexend, OpenDyslexic, Inter (CDN) |
-| AI — school backend | Huawei Cloud OCR, NLP, SIS, Machine Translation (via `server.js` HMAC proxy) |
-| AI — personal / fallback | OpenAI GPT-4o (word decode, paragraph simplify, OCR vision) |
-| TTS | ElevenLabs neural voices; Web Speech API fallback |
-| PDF | PDF.js 3.11 (CDN global) |
-| Auth / Data | Mock localStorage auth; Firebase Auth + Firestore wired up but not yet active |
+| Fonts | OpenDyslexic, Lexend, Inter (CDN) |
+| AI — school backend | Huawei Cloud OCR, NLP, SIS, Machine Translation (HMAC-SHA256 proxy via `server.js`) |
+| AI — personal / fallback | OpenAI GPT-4o (word decode, paragraph simplify, image OCR) |
+| TTS | Huawei SIS TTS · ElevenLabs · Web Speech API (fallback chain) |
+| PDF | PDF.js 3.11 (CDN) |
+| Auth | Firebase Authentication |
+| Data | Cloud Firestore — cross-device student telemetry and teacher analytics |
 | Hosting | Firebase Hosting (`read-em-215cc`) |
 | Proxy server | Plain Node.js `http` server, no framework |
-
----
-
-## Access (Demo)
-
-- **Student / Reader**: Sign up with any email and choose the Student role. Accounts persist in your browser's `localStorage` — no backend required.
-- **Teacher Dashboard**: Sign up with any email and choose the Teacher role at registration to access classroom analytics.
 
 ---
 
@@ -111,38 +157,68 @@ git clone <repo-url>
 cd read-em
 npm install
 npm run dev          # Vite dev server at http://localhost:5173
-npm run build        # Production build to dist/
-npm run preview      # Preview the production build locally
-node server.js       # Serve dist/ and Huawei proxy (run build first)
-npx firebase deploy --only hosting   # Deploy to Firebase Hosting
+npm run build        # Production build → dist/
+node server.js       # Serve dist/ + Huawei proxy (run build first)
+npx firebase deploy --only hosting
 ```
 
 ### Environment Variables
 
-Copy `.env.example` to `.env`. All variables are optional — the app falls back to offline simulation mode without them.
+Copy `.env.example` to `.env`:
 
 ```env
-# OpenAI — word decode, paragraph simplify, OCR vision (optional when Huawei is set)
+# OpenAI (optional fallback for word decode, simplify, OCR)
 VITE_OPENAI_API_KEY=sk-...
 
-# ElevenLabs — neural TTS (optional, falls back to Web Speech API)
+# ElevenLabs (optional neural TTS — falls back to Web Speech API)
 VITE_ELEVENLABS_API_KEY=...
 VITE_ELEVENLABS_MODEL_ID=eleven_turbo_v2_5
 
-# Huawei Cloud proxy — browser config pointing to your server.js instance
-VITE_HUAWEI_ENDPOINT=http://localhost:3000
-VITE_HUAWEI_API_KEY=readem-dev-key
+# Huawei proxy — browser points to your server.js instance
+VITE_HUAWEI_ENDPOINT=https://your-server.com
+VITE_HUAWEI_API_KEY=your-shared-key
 
-# Huawei Cloud credentials — server-side only, never prefix with VITE_
+# Huawei credentials — server-side ONLY, never use VITE_ prefix
 HUAWEI_AK=your_access_key
 HUAWEI_SK=your_secret_key
 HUAWEI_PROJECT_ID=your_project_id
 HUAWEI_REGION=ap-southeast-1
-SERVER_API_KEY=readem-dev-key
+SERVER_API_KEY=your-shared-key
 
-# Firebase — placeholder for Phase 2 backend (see .env.example for full list)
+# Firebase
 VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
 ```
+
+### Firestore Security Rules
+
+Before going live, deploy these rules from the Firebase console:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null;
+    }
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+---
+
+## Access
+
+- **Student view:** Sign up with any email, choose the Student role. Data syncs to Firestore — accessible from any device.
+- **Teacher dashboard:** Sign up with any email, choose the Teacher role. The dashboard shows class-wide analytics across all registered students.
 
 ---
 

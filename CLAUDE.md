@@ -30,7 +30,7 @@ Dyslexic individuals of **all ages** — from primary school students to working
 - **Huawei Cloud** — the primary AI backend for school deployments. `server.js` implements full HMAC-SHA256 signing and proxies five Huawei Cloud services: OCR, NLP simplification, NLP keyword extraction, SIS speech-to-text, and Machine Translation. Credentials (AK/SK) live only on the server; the browser only sends a shared `SERVER_API_KEY`. See "Architecture — server.js" below.
 - **OpenAI (GPT-4o)** — fallback for word decoding, paragraph simplification, and image OCR when Huawei is not configured. Called directly from the browser via `fetch`.
 - **ElevenLabs** — neural TTS called directly from the browser; falls back to Web Speech API.
-- **Firebase** (`firebase` package) — initialized in `src/store/firebase.js` (Auth + Firestore) but not currently used anywhere else. Placeholder for Phase 2 backend.
+- **Firebase** (`firebase` package) — Firebase Authentication handles sign-up/sign-in with real email/password accounts. Cloud Firestore stores all reading telemetry and teacher analytics, enabling cross-device access. Initialized in `src/store/firebase.js`; used by `src/store/auth.js` and `src/store/tracker.js`.
 - **server.js** — a plain Node `http` server (no Express) that serves `dist/` and handles all Huawei Cloud proxy routes.
 
 ---
@@ -55,9 +55,9 @@ Dyslexic individuals of **all ages** — from primary school students to working
     │   ├── tts.js                 # TTS: Web Speech + ElevenLabs playback, word-highlight sync
     │   └── pdf-handler.js         # PDF/text extraction via global pdfjsLib
     └── store/                     # modules that store state and persist data
-        ├── auth.js                # mock auth (localStorage-backed, not Firebase Auth)
-        ├── tracker.js             # reading telemetry (localStorage-backed, not Firestore)
-        └── firebase.js            # Firebase Auth/Firestore init (currently unused elsewhere)
+        ├── auth.js                # Firebase Auth: email/password sign-up/sign-in, role stored in Firestore users/{uid}
+        ├── tracker.js             # reading telemetry: all collections backed by Cloud Firestore (cross-device)
+        └── firebase.js            # Firebase App/Auth/Firestore init — imported by auth.js and tracker.js
 ```
 
 `src/` is split into `services/` for external integrations and processors, and `store/` for state and persistence. `main.js` stays at the root of `src/` as the orchestrator. Don't add further nesting unless the project genuinely outgrows this structure.
@@ -146,13 +146,13 @@ Exports the `TTS` singleton. Voice engine priority: **Huawei SIS TTS** → **Ele
 `getAvailableVoices()` filters Web Speech voices for language codes `en`, `zh`, `ms`, `ta` so all four appear in the voice selector. ElevenLabs word-highlight sync is **time-based approximation** (audio progress mapped linearly to character positions), not real boundary events.
 
 ### `src/store/auth.js`
-**Mock auth, not Firebase Auth.** Signing in with an unregistered email auto-creates an account (any password accepted on first use); returning users must match their stored password. Role (`student`/`teacher`) is chosen at sign-up. Accounts and sessions persist in `localStorage` (`readem_mock_users`, `readem_current_user`).
+**Firebase Authentication.** `signUp` creates a real Firebase Auth account and writes a `users/{uid}` Firestore document with the user's role and display name. `signIn` authenticates via Firebase and loads the role from Firestore. `onAuthStateChanged` fires on every page load to restore the session; listeners are notified after the Firestore profile is fetched. `getCurrentUser()` returns a cached `{ uid, email, displayName, role }` object synchronously.
 
 ### `src/store/tracker.js`
-Reading-difficulty telemetry (word clicks, simplifications, reading speed). Despite the header comment mentioning Firestore, the implementation is entirely `localStorage`-backed. The teacher dashboard reads all logs regardless of `currentUid` — every student who has used the same browser contributes to the same view. This is intentional for the single-device demo.
+Reading-difficulty telemetry backed by **Cloud Firestore**. All six collections (`wordLogs`, `sentenceLogs`, `speedLogs`, `sessionSummaries`, `readingProgress`, `comprehensionLogs`) are Firestore top-level collections. Data is accessible from any device for any authenticated user. Read queries (`getWordDigest`, `getStats`, `getStudentList`, etc.) fetch all docs without uid filter so teachers can see the full class view.
 
 ### `src/store/firebase.js`
-Initializes Firebase App/Auth/Firestore from `VITE_FIREBASE_*` env vars, but nothing else in `src/` imports it. Placeholder for a future real backend.
+Initializes Firebase App, Auth, and Firestore from `VITE_FIREBASE_*` env vars. Imported by `auth.js` and `tracker.js`.
 
 ### `src/services/tts.js` (~450 lines)
 Exports the `TTS` singleton: `parseText`, browser Web Speech playback (`speak`), ElevenLabs playback (`speakElevenLabs`), word-highlight sync loop, `pause`/`resume`/`stop`, single-word click-to-hear. ElevenLabs word-highlight sync is **time-based approximation** (audio progress mapped linearly to character positions), not real boundary events. It is a heuristic.
@@ -176,9 +176,9 @@ Single-page markup and a single global stylesheet; no component system or scoped
 
 ## Known gaps / things to double-check before relying on them
 
-- **Huawei proxy server must be deployed for Huawei features to work.** `server.js` is fully implemented and ready; it just needs to run on a server (e.g. Huawei ECS) with `HUAWEI_AK`, `HUAWEI_SK`, `HUAWEI_PROJECT_ID` set. Without a deployed instance, all Huawei features silently fall back to OpenAI or offline mode.
-- **Firebase is configured but dormant.** Auth and Firestore are initialized in `src/store/firebase.js` but unused; all data lives only in `localStorage` and will not sync across devices or survive a cleared cache.
-- **Teacher dashboard shows all-device data**, not per-student, because tracker logs are keyed to localStorage not to a user account. This is intentional for single-device demo but must be addressed before multi-student classroom use.
+- **Huawei proxy server must be deployed for Huawei features to work.** `server.js` is fully implemented and ready; it just needs to run on a server (e.g. Huawei ECS) with `HUAWEI_AK`, `HUAWEI_SK`, `HUAWEI_PROJECT_ID` set. Without a deployed instance, all Huawei features silently fall back to OpenAI or offline mode. If judges inspect network requests during the live demo and see OpenAI endpoints instead of the Huawei proxy, it risks scoring poorly on the Huawei integration requirement.
+- **Firestore security rules must be deployed** before the app goes live. Without rules, Firestore rejects all reads/writes. See the README for the recommended rules (authenticated users can read/write all telemetry collections; only the owner can write their own `users/{uid}` document).
+- **Firebase env vars are required.** Without `VITE_FIREBASE_*` set, Auth and Firestore will throw on init and the app will not load. The Firebase project `read-em-215cc` is already configured in `.firebaserc`.
 - **No LICENSE file** in the repo despite MIT claim in README.
 - No automated tests, lint, or CI.
 
